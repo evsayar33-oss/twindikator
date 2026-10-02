@@ -208,6 +208,7 @@ def _dk_frame(rec: np.ndarray, price_range: tuple[float, float]) -> pd.DataFrame
             break
     idx = pd.to_datetime(rec[:, 0].astype("int64"), unit="s", utc=True)
     df = pd.DataFrame({"open": o / scale, "high": hi / scale, "low": lo / scale, "close": c / scale, "volume": rec[:, 5]}, index=idx)
+    df = df[(df["volume"] > 0) | (df["high"] > df["low"])]   # piyasa kapalı (işlemsiz, düz) dakikaları at
     return _finish(df)
 
 

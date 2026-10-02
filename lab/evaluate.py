@@ -83,7 +83,9 @@ def evaluate(df: pd.DataFrame, cost_bps: float, tf_min: int, partner: pd.Series 
             rows.append(row)
     res = pd.DataFrame(rows)
     aux = {"book": book, "sims": sims, "valid": valid, "split": split, "index": df.index, "span": span,
-           "months": months, "meta": meta_msg, "n_entries": len(book.items)}
+           "months": months, "meta": meta_msg, "n_entries": len(book.items),
+           # 1 ATR stoplu bir işlemin maliyeti kaç R? (kısa ZD'de maliyetin avantajı nasıl yediğini gösterir)
+           "cost_R": float(np.nanmedian((cost_bps / 1e4) * f["c"].to_numpy() / f["atr"].to_numpy()))}
     return res, aux
 
 

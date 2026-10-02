@@ -85,7 +85,9 @@ def compute(df: pd.DataFrame) -> dict:
         "S": stoch(h, l, c, C.STOCH_LEN, C.STOCH_SMOOTH),
         "W": wavetrend_norm(h, l, c, C.WT_N1, C.WT_N2, C.WT_SCALE),
         "rsi2": rsi(c, 2),
-        "atr": rma(tr, C.ATR_LEN),
+        # ATR tabanı: piyasa kapalıyken oluşan sıfır aralıklı barlar ATR'yi ~0'a çeker,
+        # ardından açılış boşluğu milyonlarca R gibi sahte sonuç üretir → uzun dönem medyanın yarısı taban
+        "atr": np.maximum(rma(tr, C.ATR_LEN), 0.5 * rma(tr, C.ATR_LEN).rolling(500, min_periods=50).median().bfill()),
         "ema200": ema(c, C.TREND_EMA),
         "ema50": ema(c, 50),
         "volZ": robust_z(np.log1p(v.clip(lower=0)), C.SHOCK_LEN),

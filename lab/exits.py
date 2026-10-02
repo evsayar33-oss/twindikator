@@ -17,6 +17,9 @@ import pandas as pd
 from . import config as C
 
 
+R_CAP = 20.0
+
+
 def _shift(x: np.ndarray, k: int) -> np.ndarray:
     out = np.empty_like(x)
     out[: len(x) - k] = x[k:]
@@ -74,7 +77,7 @@ def simulate(df: pd.DataFrame, atr: pd.Series, cost_bps: float, cfg: dict) -> di
         cH = _shift(cl_s, H)
         R[alive] += size[alive] * (cH[alive] - e[alive]) / risk[alive]
         cost = (cost_bps / 1e4) * entry0 / risk
-        R = R - cost
+        R = np.clip(R, -3.0, R_CAP) - cost   # boşluk/hatalı tik koruması: tek işlem en fazla −3R / +R_CAP
         R[~valid] = np.nan
         out[side] = R
     return out
