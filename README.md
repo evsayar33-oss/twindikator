@@ -1,4 +1,12 @@
-# ATVS Lab v2.3
+# ATVS Lab v2.4
+
+**v2.4 değişiklikleri**
+
+- **Eksik veri düzeltmesi.** Dukascopy kısıtlama yaptığında (429/5xx hatası ya da bozuk yanıt) eksik kalan aylar ve günler artık sessizce atlanmıyor; daha düşük eşzamanlılıkla 4 tura kadar yeniden deneniyor. Kaynakta gerçekten verisi olmayan aylar ayrıca raporlanıyor.
+- **Boşluk koruması.** Giriş ile zaman bariyeri arasında 4 günden uzun bir veri boşluğu varsa o işlem sayılmıyor. Sahte büyük R değerlerinin asıl kaynağı bu boşluklardı.
+- **Doğrulama tablosu.** Tabloya dönem ve **eksik ay** sütunları eklendi.
+- **Yıllık kararlılık tablosu.** Portföydeki her stratejinin ortalama R'si yıl yıl gösteriliyor.
+
 
 **v2.3 değişiklikleri**
 

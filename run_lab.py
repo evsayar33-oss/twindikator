@@ -224,9 +224,9 @@ def render(summary: dict, synth: bool, port: dict | None = None, vreps: list | N
         "",
         "## Veri doğrulama (yfinance günlük kapanışla ay ay karşılaştırma)",
         "",
-        "| Varlık | Taban | Referans | Durum | Ay | Düzeltilen ay | Atılan ay | Atılan sıçrama | Medyan sapma |",
-        "|---|---|---|---|---|---|---|---|---|",
-        *[f"| {v['asset']} | {v['base']} | {v['ref']} | {v['status']} | {v.get('months', '—')} | {v['fixed_months']} | {v['dropped_months']} | {v['spikes']} | "
+        "| Varlık | Taban | Dönem | Referans | Durum | Ay | **Eksik ay** | Düzeltilen ay | Atılan ay | Atılan sıçrama | Medyan sapma |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
+        *[f"| {v['asset']} | {v['base']} | {v.get('span', '—')} | {v['ref']} | {v['status']} | {v.get('months', '—')} | {v.get('gap_months', '—')} | {v['fixed_months']} | {v['dropped_months']} | {v['spikes']} | "
           f"{pct(v['median_dev'])} |" for v in (vreps or [])],
         "",
         "## Özet — varlık başına en iyi (IS'te seçilen, OOS'ta ölçülen)",
