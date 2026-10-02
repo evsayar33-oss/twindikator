@@ -1,1 +1,185 @@
-e
+//@version=6
+indicator("ATVS Lab — Test Edilmiş Kombinasyon", shorttitle = "ATVS-L", overlay = false, max_labels_count = 500)
+
+// Python laboratuvarıyla (run_lab.py) BİREBİR aynı mantık.
+// RAPOR.md / en_iyi.json'da varlığın için çıkan ayarları buraya gir; tablodaki isabet,
+// laboratuvarın sonucuyla aynı yöntemle (sonraki bar açılışı giriş, TP/SL/zaman bariyeri, maliyet) hesaplanır.
+
+string G1 = "Kombinasyon (rapordan)"
+bool   useR   = input.bool(true, "RSI", group = G1, inline = "o")
+bool   useS   = input.bool(true, "Stoch", group = G1, inline = "o")
+bool   useW   = input.bool(true, "WaveTrend", group = G1, inline = "o")
+string mode   = input.string("dinamik", "Eşik", options = ["dinamik", "sabit 80/20"], group = G1)
+bool   fVol   = input.bool(false, "Hacim şoku", group = G1, inline = "f1")
+bool   fVty   = input.bool(false, "Volatilite şoku", group = G1, inline = "f1")
+bool   fTrend = input.bool(false, "Trend (EMA200)", group = G1, inline = "f2")
+bool   fConf  = input.bool(false, "Onay mumu", group = G1, inline = "f2")
+string scope  = input.string("iki yön", "Yön", options = ["iki yön", "yalnız LONG", "yalnız SHORT"], group = G1)
+
+string G2 = "Sabitler (laboratuvarla aynı tut)"
+int   armBars = input.int(6, "Tetik penceresi (bar)", minval = 1, group = G2)
+float shockZ  = input.float(1.5, "Şok eşiği (robust z)", step = 0.1, group = G2)
+int   shockN  = input.int(50, "Şok referans penceresi", group = G2)
+int   dynLen  = input.int(300, "Dinamik eşik penceresi", group = G2)
+float tpAtr   = input.float(1.5, "TP (ATR)", step = 0.1, group = G2, inline = "b")
+float slAtr   = input.float(1.0, "SL (ATR)", step = 0.1, group = G2, inline = "b")
+int   horizon = input.int(24, "Zaman bariyeri (bar)", group = G2)
+float costBps = input.float(2.0, "Maliyet (baz puan, gidiş-dönüş)", step = 0.5, group = G2, tooltip = "Laboratuvar: XAU 2, XAG 5, BTC/ETH 8, NQ/SPX 2")
+bool  showTbl = input.bool(true, "İsabet tablosu", group = G2)
+
+// ───────── osilatörler
+f_tanh(float x) =>
+    float e = math.exp(2.0 * math.max(-20.0, math.min(20.0, x)))
+    (e - 1.0) / (e + 1.0)
+
+float rsi = ta.rsi(close, 14)
+float stK = ta.sma(ta.stoch(close, high, low, 14), 3)
+float ap  = hlc3
+float esa = ta.ema(ap, 10)
+float dv  = ta.ema(math.abs(ap - esa), 10)
+float wt1 = ta.ema(dv > 0 ? (ap - esa) / (0.015 * dv) : 0.0, 21)
+float wtN = 50.0 + 50.0 * f_tanh(wt1 / 75.0)
+
+bool dyn = mode == "dinamik"
+f_up(float x) =>
+    float p = ta.percentile_linear_interpolation(x, dynLen, 90)
+    dyn ? math.min(math.max(nz(p[1], 80.0), 65.0), 92.0) : 80.0
+f_dn(float x) =>
+    float p = ta.percentile_linear_interpolation(x, dynLen, 10)
+    dyn ? math.min(math.max(nz(p[1], 20.0), 8.0), 35.0) : 20.0
+
+float rU = f_up(rsi)
+float rD = f_dn(rsi)
+float sU = f_up(stK)
+float sD = f_dn(stK)
+float wU = f_up(wtN)
+float wD = f_dn(wtN)
+
+f_touch(bool b) =>
+    ta.highest(b ? 1 : 0, armBars) > 0
+f_exit(bool b) =>
+    b[1] and not b
+
+bool rOB = rsi > rU
+bool rOS = rsi < rD
+bool sOB = stK > sU
+bool sOS = stK < sD
+bool wOB = wtN > wU
+bool wOS = wtN < wD
+bool tRO = f_touch(rOB)
+bool tRS = f_touch(rOS)
+bool tSO = f_touch(sOB)
+bool tSS = f_touch(sOS)
+bool tWO = f_touch(wOB)
+bool tWS = f_touch(wOS)
+bool xRO = f_exit(rOB)
+bool xRS = f_exit(rOS)
+bool xSO = f_exit(sOB)
+bool xSS = f_exit(sOS)
+bool xWO = f_exit(wOB)
+bool xWS = f_exit(wOS)
+
+bool anyOsc = useR or useS or useW
+bool armS = anyOsc and (not useR or tRO) and (not useS or tSO) and (not useW or tWO)
+bool armL = anyOsc and (not useR or tRS) and (not useS or tSS) and (not useW or tWS)
+bool exS  = (useR and xRO) or (useS and xSO) or (useW and xWO)
+bool exL  = (useR and xRS) or (useS and xSS) or (useW and xWS)
+
+// ───────── filtreler
+f_rz(float x) =>
+    float med = ta.median(x, shockN)
+    float mad = ta.median(math.abs(x - med), shockN)
+    float sc  = 1.4826 * nz(mad[1])
+    sc > 0 ? (x - med[1]) / sc : na
+
+bool  hasVol = ta.cum(nz(volume)) > 0
+float volZ = f_rz(math.log(nz(volume) + 1.0))
+float vtyZ = f_rz(math.log(math.max(ta.tr(true), 1e-12)))
+bool  volS = not hasVol or ta.highest(nz(volZ) >= shockZ ? 1 : 0, armBars) > 0
+bool  vtyS = ta.highest(nz(vtyZ) >= shockZ ? 1 : 0, armBars) > 0
+float ema  = ta.ema(close, 200)
+
+bool rawL = armL and exL and (not fVol or volS) and (not fVty or vtyS) and (not fTrend or close > ema) and (not fConf or (close > open and close > close[1]))
+bool rawS = armS and exS and (not fVol or volS) and (not fVty or vtyS) and (not fTrend or close < ema) and (not fConf or (close < open and close < close[1]))
+bool prvL = ta.highest(rawL[1] ? 1 : 0, armBars) > 0
+bool prvS = ta.highest(rawS[1] ? 1 : 0, armBars) > 0
+bool sigL = rawL and not prvL and scope != "yalnız SHORT" and barstate.isconfirmed
+bool sigS = rawS and not prvS and scope != "yalnız LONG" and barstate.isconfirmed
+
+// ───────── üçlü bariyer ile canlı isabet ölçümü (laboratuvarla aynı)
+float atr = ta.atr(14)
+var array<float> tEntry = array.new<float>()
+var array<float> tAtr   = array.new<float>()
+var array<int>   tDir   = array.new<int>()
+var array<int>   tSig   = array.new<int>()
+var int   nL = 0
+var int   wL = 0
+var int   nS = 0
+var int   wS = 0
+var float sumR = 0.0
+
+if sigL[1] and not na(atr[1]) and atr[1] > 0
+    tEntry.push(open)
+    tAtr.push(atr[1])
+    tDir.push(1)
+    tSig.push(bar_index - 1)
+if sigS[1] and not na(atr[1]) and atr[1] > 0
+    tEntry.push(open)
+    tAtr.push(atr[1])
+    tDir.push(-1)
+    tSig.push(bar_index - 1)
+
+if barstate.isconfirmed and tEntry.size() > 0
+    for i = tEntry.size() - 1 to 0
+        float e = tEntry.get(i)
+        float a = tAtr.get(i)
+        int   d = tDir.get(i)
+        float adv = d == 1 ? e - low : high - e
+        float fav = d == 1 ? high - e : e - low
+        float r = na
+        if adv >= slAtr * a
+            r := -1.0
+        else if fav >= tpAtr * a
+            r := tpAtr / slAtr
+        else if bar_index - tSig.get(i) >= horizon
+            r := math.max(-1.0, math.min(tpAtr / slAtr, d * (close - e) / (slAtr * a)))
+        if not na(r)
+            r -= (costBps / 1e4) * e / (slAtr * a)
+            sumR += r
+            if d == 1
+                nL += 1
+                wL += r > 0 ? 1 : 0
+            else
+                nS += 1
+                wS += r > 0 ? 1 : 0
+            tEntry.remove(i)
+            tAtr.remove(i)
+            tDir.remove(i)
+            tSig.remove(i)
+
+// ───────── çizim
+float comp = ((useR ? rsi : 0) + (useS ? stK : 0) + (useW ? wtN : 0)) / math.max((useR ? 1 : 0) + (useS ? 1 : 0) + (useW ? 1 : 0), 1)
+float cU   = ((useR ? rU : 0) + (useS ? sU : 0) + (useW ? wU : 0)) / math.max((useR ? 1 : 0) + (useS ? 1 : 0) + (useW ? 1 : 0), 1)
+float cD   = ((useR ? rD : 0) + (useS ? sD : 0) + (useW ? wD : 0)) / math.max((useR ? 1 : 0) + (useS ? 1 : 0) + (useW ? 1 : 0), 1)
+plot(comp, "Seçili osilatör ort.", color = #ffb300, linewidth = 2)
+plot(cU, "Üst eşik", color = color.new(#ff5252, 20), style = plot.style_stepline)
+plot(cD, "Alt eşik", color = color.new(#00e676, 20), style = plot.style_stepline)
+plotshape(sigL, "LONG", shape.triangleup, location.bottom, color = #00e676, size = size.tiny)
+plotshape(sigS, "SHORT", shape.triangledown, location.top, color = #ff5252, size = size.tiny)
+plotshape(sigL, "LONG fiyat", shape.labelup, location.belowbar, color = #00e676, text = "L", textcolor = color.white, size = size.tiny, force_overlay = true)
+plotshape(sigS, "SHORT fiyat", shape.labeldown, location.abovebar, color = #ff5252, text = "S", textcolor = color.white, size = size.tiny, force_overlay = true)
+
+var table tb = table.new(position.bottom_left, 2, 4, bgcolor = color.new(#0d1117, 10), border_width = 1, border_color = #30363d)
+if showTbl and barstate.islast
+    int n = nL + nS
+    table.cell(tb, 0, 0, "LONG isabet (n)", text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 1, 0, nL > 0 ? str.tostring(100.0 * wL / nL, "#.0") + "% (" + str.tostring(nL) + ")" : "—", text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 0, 1, "SHORT isabet (n)", text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 1, 1, nS > 0 ? str.tostring(100.0 * wS / nS, "#.0") + "% (" + str.tostring(nS) + ")" : "—", text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 0, 2, "Toplam isabet", text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 1, 2, n > 0 ? str.tostring(100.0 * (wL + wS) / n, "#.0") + "%" : "—", text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 0, 3, "Ort. beklenti", text_color = color.white, text_size = size.tiny)
+    table.cell(tb, 1, 3, n > 0 ? str.tostring(sumR / n, "+#.00;-#.00") + "R" : "—", text_color = sumR > 0 ? #00e676 : #ff5252, text_size = size.tiny)
+
+alertcondition(sigL, "ATVS-L LONG", "ATVS-L LONG {{ticker}} {{interval}} @ {{close}}")
+alertcondition(sigS, "ATVS-L SHORT", "ATVS-L SHORT {{ticker}} {{interval}} @ {{close}}")
