@@ -1,4 +1,12 @@
-# ATVS Lab v2.2
+# ATVS Lab v2.3
+
+**v2.3 değişiklikleri**
+
+- **Veri doğrulama.** Her seri yfinance günlük kapanışıyla ay ay karşılaştırılır. Ölçek hatası olan aylar düzeltilir. Düzeltilemeyen aylar ve tek barlık sahte sıçramalar atılır. Raporun başında bir doğrulama tablosu yer alır.
+- **Temiz önbellek.** Önbellek sürümü `v3` oldu. Tüm veri baştan ve temiz indirilir. 1h tabanı için kaynakta ne kadar geçmiş varsa o kullanılır (en fazla 15 yıl).
+- **Odak modu.** Yalnızca 1h ve 4h test edilir. Aileler: MA, DONCH, SQZ, RSI2, REJIM, OSC, META. Test sayısı azaldığı için istatistikler daha güçlüdür. Kapsamı değiştirmek için ortam değişkenlerini kullan: `ATVS_TFS=30m,1h,4h`, `ATVS_FAMILIES=` (boş bırakılırsa tüm aileler).
+- **Alfa.** Her sonuç, aynı çıkışla rastgele girişin beklentisiyle karşılaştırılır. Böylece boğa piyasasında yalnızca LONG tarafta durarak "kazanan" stratejiler ayıklanır.
+- **🚩 Veri şüphesi.** OOS beklentisi 1.5R'nin veya isabeti %85'in üstündeki sonuçlar işaretlenir. Bu sonuçlar seçime ve portföye alınmaz.
 
 XAU · XAG · BTC · ETH · NQ · SPX varlıklarını **5m / 15m / 30m / 1h / 4h** zaman dilimlerinde test eder. Kapsam: **13 strateji ailesi** (yaklaşık 280 giriş) × **11 çıkış yöntemi** × 3 yön (iki yön / LONG / SHORT). Sonuçta her varlık için **OOS'ta en yüksek beklentiyi (R) veren** ayarı raporlar. Tamamen ücretsiz veri kullanır.
 

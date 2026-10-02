@@ -61,13 +61,18 @@ def synthetic(base: str, years: float, seed: int) -> pd.DataFrame:
 def run(assets: list[str], refresh: bool, synth: bool):
     os.makedirs(C.OUT_DIR, exist_ok=True)
     need = list(dict.fromkeys(assets + [C.PARTNER[a] for a in assets if a in C.PARTNER]))
-    bases, srcs, funding = {}, {}, {}
+    tfs_run = [tf for tf in C.TIMEFRAMES if not C.FOCUS_TFS or tf in C.FOCUS_TFS]
+    need_bases = sorted({C.TIMEFRAMES[tf]["base"] for tf in tfs_run})
+    bases, srcs, funding, vreps = {}, {}, {}, []
     for ai, a in enumerate(need):
-        for b in ("5m", "1h"):
+        for b in need_bases:
             if synth:
                 bases[(a, b)], srcs[(a, b)] = synthetic(b, 0.5 if b == "5m" else 3, 100 * ai + (b == "1h")), "SENTETİK"
             else:
-                bases[(a, b)], srcs[(a, b)] = D.load(a, b, refresh=refresh)
+                raw, srcs[(a, b)] = D.load(a, b, refresh=refresh)
+                bases[(a, b)], rep = D.validate(a, b, raw)
+                vreps.append(rep)
+                print(f"  doğrulama {a} {b}: {rep['status']} · düzeltilen ay {rep['fixed_months']} · atılan ay {rep['dropped_months']} · sıçrama {rep['spikes']}")
             df = bases[(a, b)]
             print(f"{a} {b}: {len(df):,} bar {df.index[0] if len(df) else '-'} → {df.index[-1] if len(df) else '-'} [{srcs[(a, b)]}]")
         funding[a] = None if synth else D.load_funding(a, refresh=refresh)
@@ -80,7 +85,8 @@ def run(assets: list[str], refresh: bool, synth: bool):
         print(f"\n═══ {a} ═══")
         pa = C.PARTNER.get(a)
         tf_res, tf_aux = {}, {}
-        for tf, spec in C.TIMEFRAMES.items():
+        for tf in tfs_run:
+            spec = C.TIMEFRAMES[tf]
             base = bases[(a, spec["base"])]
             if base.empty:
                 continue
@@ -120,7 +126,7 @@ def run(assets: list[str], refresh: bool, synth: bool):
                   ).sort_values("time").to_csv(os.path.join(C.OUT_DIR, "portfoy_islemler.csv.gz"), index=False, compression="gzip")
         pd.DataFrame({f"risk_%{100 * lv['risk']:.2g}": lv["equity"] for lv in port["levels"]}).to_csv(os.path.join(C.OUT_DIR, "portfoy_kasa_oos.csv"))
         print(f"Portföy: {len(port['selected'])} strateji")
-    md = render(summary, synth, port)
+    md = render(summary, synth, port, vreps, tfs_run)
     with open(os.path.join(C.OUT_DIR, "RAPOR.md"), "w", encoding="utf-8") as fh:
         fh.write(md)
     if os.getenv("GITHUB_STEP_SUMMARY"):
@@ -199,7 +205,7 @@ def analyse(a, tf_res, tf_aux, srcs) -> dict:
 
 
 # ───────────────────────── RAPOR ─────────────────────────
-def render(summary: dict, synth: bool, port: dict | None = None) -> str:
+def render(summary: dict, synth: bool, port: dict | None = None, vreps: list | None = None, tfs_run: list | None = None) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     L = [f"# ATVS Lab v2 Raporu — {now}", ""]
     if synth:
@@ -212,10 +218,21 @@ def render(summary: dict, synth: bool, port: dict | None = None) -> str:
         f"Giriş: sinyalden sonraki bar açılışı · zaman bariyeri {C.HORIZON} bar · aynı barda hedef+stop = stop. "
         "TP1>BE = 1R'de stop girişe · %50@1R>BE = 1R'de yarısı kapanır, stop girişe · IZ = iz süren stop.",
         "",
+        f"**Odak:** zaman dilimleri {', '.join(tfs_run or [])} · aileler {', '.join(C.FOCUS_FAMILIES) or 'tümü'}. "
+        "**Alfa** = aynı çıkışla aynı dönemde rastgele girişe göre fark (piyasanın kendi yükselişini ayıklar). "
+        "🚩 = fiziksel olarak inandırıcı olmayan sonuç (veri hatası belirtisi) — seçimden çıkarılır.",
+        "",
+        "## Veri doğrulama (yfinance günlük kapanışla ay ay karşılaştırma)",
+        "",
+        "| Varlık | Taban | Referans | Durum | Ay | Düzeltilen ay | Atılan ay | Atılan sıçrama | Medyan sapma |",
+        "|---|---|---|---|---|---|---|---|---|",
+        *[f"| {v['asset']} | {v['base']} | {v['ref']} | {v['status']} | {v.get('months', '—')} | {v['fixed_months']} | {v['dropped_months']} | {v['spikes']} | "
+          f"{pct(v['median_dev'])} |" for v in (vreps or [])],
+        "",
         "## Özet — varlık başına en iyi (IS'te seçilen, OOS'ta ölçülen)",
         "",
-        "| Varlık | ZD | Yön | Giriş | Çıkış | IS beklenti (n) | **OOS beklenti (n)** | OOS isabet | OOS PF | İşlem/ay | OOS maks. düşüş | p | Karar |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| Varlık | ZD | Yön | Giriş | Çıkış | IS beklenti (n) | **OOS beklenti (n)** | OOS alfa | OOS isabet | OOS PF | İşlem/ay | OOS maks. düşüş | p | Karar |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     k_sum = sum(1 for s in summary.values() if "row" in s)
     for a, s in summary.items():
@@ -226,12 +243,12 @@ def render(summary: dict, synth: bool, port: dict | None = None) -> str:
         s["verdict"] = EV.verdict(r, sc, k_sum)
         s["json"]["karar"] = s["verdict"]
         L.append(f"| **{a}** | {s['tf_sel']} | {SC_TR[sc]} | {r['entry']} | {r['exit']} | {rr(r[f'{sc}_is_exp'])} ({int(r[f'{sc}_is_n'])}) | "
-                 f"**{rr(r[f'{sc}_oos_exp'])}** ({int(r[f'{sc}_oos_n'])}) | {pct(r[f'{sc}_oos_wr'])} | {f2(r[f'{sc}_oos_pf'])} | "
+                 f"**{rr(r[f'{sc}_oos_exp'])}** ({int(r[f'{sc}_oos_n'])}) | {rr(r[f'{sc}_oos_alpha'])} | {pct(r[f'{sc}_oos_wr'])} | {f2(r[f'{sc}_oos_pf'])} | "
                  f"{r[f'{sc}_oos_pm']:.1f} | {f2(s['dd'][1])}R | {pv(r[f'{sc}_oos_p'])} | {s['verdict']} |")
     if port is not None:
         L += [""] + PF.render(port)
     # ısı tablosu
-    tfs = list(C.TIMEFRAMES)
+    tfs = tfs_run or list(C.TIMEFRAMES)
     L += ["", "## Varlık × zaman dilimi — her hücrede IS'te seçilen en iyinin OOS beklentisi", "",
           "| Varlık | " + " | ".join(tfs) + " |", "|---|" + "---|" * len(tfs)]
     k_heat = sum(1 for s in summary.values() for d in s["tf"].values() if d["row"] is not None)
@@ -256,11 +273,11 @@ def render(summary: dict, synth: bool, port: dict | None = None) -> str:
             (a0, a1), (b0, b1) = d["span"]["is"], d["span"]["oos"]
             L.append(f"| {tf} | {d['bars']:,} | {a0:%Y-%m-%d} → {a1:%Y-%m-%d} | {b0:%Y-%m-%d} → {b1:%Y-%m-%d} | {d['cost_R']:.3f}R | {d['meta'] or 'çalıştı'} |")
         L += ["", "### Strateji aileleri (her aile için tüm ZD ve yönlerde IS'te seçilen en iyi, OOS'a göre sıralı)", "",
-              "| Aile | ZD | Yön | Giriş | Çıkış | IS beklenti (n) | OOS beklenti (n) | OOS isabet | OOS PF | p | Karar |",
-              "|---|---|---|---|---|---|---|---|---|---|---|"]
+              "| Aile | ZD | Yön | Giriş | Çıkış | IS beklenti (n) | OOS beklenti (n) | OOS alfa | OOS isabet | OOS PF | p | Karar |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for tf, sc, r in s["fams"]:
             L.append(f"| **{r['family']}** | {tf} | {SC_TR[sc]} | {r['entry'].split(' · ', 1)[-1]} | {r['exit']} | {rr(r[f'{sc}_is_exp'])} ({int(r[f'{sc}_is_n'])}) | "
-                     f"{rr(r[f'{sc}_oos_exp'])} ({int(r[f'{sc}_oos_n'])}) | {pct(r[f'{sc}_oos_wr'])} | {f2(r[f'{sc}_oos_pf'])} | {pv(r[f'{sc}_oos_p'])} | {EV.verdict(r, sc, len(s['fams']))} |")
+                     f"{rr(r[f'{sc}_oos_exp'])} ({int(r[f'{sc}_oos_n'])}) | {rr(r[f'{sc}_oos_alpha'])} | {pct(r[f'{sc}_oos_wr'])} | {f2(r[f'{sc}_oos_pf'])} | {pv(r[f'{sc}_oos_p'])} | {EV.verdict(r, sc, len(s['fams']))} |")
         L += ["", f"### Çıkış yöntemleri ({s['tf_sel']}) — girişten bağımsız etkisi", "",
               "| Çıkış | IS ilk 20 → OOS beklenti | OOS'ta pozitif kalan | OOS isabet | Tüm girişler OOS beklenti | Tüm girişler OOS isabet | Giriş sayısı |",
               "|---|---|---|---|---|---|---|"]
