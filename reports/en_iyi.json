@@ -1,128 +1,174 @@
 {
   "XAU": {
-    "zaman_dilimi": "5m",
+    "zaman_dilimi": "15m",
     "yon": "both",
-    "rsi": true,
-    "stoch": true,
-    "wavetrend": false,
-    "esik": "static",
-    "filtreler": [
-      "VOL"
-    ],
-    "kombinasyon": "RSI+Stoch · sabit 80/20 · Hacim şoku",
-    "is_isabet": 0.5901639344262295,
-    "is_n": 61,
-    "oos_isabet": 0.42857142857142855,
-    "oos_n": 28,
-    "oos_taban": 0.32416186928547247,
-    "oos_beklenti_R": -0.10363792445041017,
-    "oos_p": 0.16391628924456664,
-    "karar": "❌ OOS'ta tutmadı"
+    "aile": "SEZON",
+    "giris": "SEZON · saat etkisi UTC 11↑ 22↑ 23↑",
+    "cikis": "IZ_SUREN_2.5ATR",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": null,
+      "trail": 2.5,
+      "trail_mode": "always"
+    },
+    "is": {
+      "n": "700",
+      "wr": 0.2785714285714286,
+      "exp": 64.98323269302351,
+      "pf": 21.824338939985864,
+      "pm": 35.27814569536424
+    },
+    "oos": {
+      "n": "300",
+      "wr": 0.23,
+      "exp": 5.287224347676202,
+      "pf": 5.405327470243253,
+      "pm": 78.72413793103449,
+      "p": 0.04974425314400517
+    },
+    "karar": "✅ Kanıtlı"
   },
   "XAG": {
-    "zaman_dilimi": "5m",
-    "yon": "both",
-    "rsi": true,
-    "stoch": true,
-    "wavetrend": true,
-    "esik": "static",
-    "filtreler": [
-      "VOL",
-      "VTY"
-    ],
-    "kombinasyon": "RSI+Stoch+WaveTrend · sabit 80/20 · Hacim şoku + Volatilite şoku",
-    "is_isabet": 0.49333333333333335,
-    "is_n": 75,
-    "oos_isabet": 0.4444444444444444,
-    "oos_n": 36,
-    "oos_taban": 0.3186013986013986,
-    "oos_beklenti_R": -0.1640112567328732,
-    "oos_p": 0.07469720415950751,
+    "zaman_dilimi": "4h",
+    "yon": "short",
+    "aile": "MA",
+    "giris": "MA · EMA 20/50 kesişimi",
+    "cikis": "GENIS_%50@1R>BE_3R",
+    "cikis_parametreleri": {
+      "sl_atr": 1.5,
+      "tp": 3.0,
+      "tp1": 1.0,
+      "part": 0.5
+    },
+    "is": {
+      "n": "81",
+      "wr": 0.6419753086419753,
+      "exp": 0.32772697939912104,
+      "pf": 1.8787139134634137,
+      "pm": 1.6083757338551858
+    },
+    "oos": {
+      "n": "34",
+      "wr": 0.47058823529411764,
+      "exp": -0.06691914751843588,
+      "pf": 0.878373732834441,
+      "pm": 1.5752815829528157,
+      "p": 0.6314617628689904
+    },
     "karar": "❌ OOS'ta tutmadı"
   },
   "BTC": {
-    "zaman_dilimi": "15m",
-    "yon": "both",
-    "rsi": false,
-    "stoch": false,
-    "wavetrend": true,
-    "esik": "static",
-    "filtreler": [
-      "VTY",
-      "TREND"
-    ],
-    "kombinasyon": "WaveTrend · sabit 80/20 · Volatilite şoku + Trend (EMA200)",
-    "is_isabet": 0.5666666666666667,
-    "is_n": 60,
-    "oos_isabet": 0.4,
-    "oos_n": 25,
-    "oos_taban": 0.3938095238095238,
-    "oos_beklenti_R": -0.3801395572555188,
-    "oos_p": 0.5561910927718967,
+    "zaman_dilimi": "4h",
+    "yon": "short",
+    "aile": "DONCH",
+    "giris": "DONCH · Donchian 20 · hacim şoku",
+    "cikis": "SABIT_1.5R",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": 1.5
+    },
+    "is": {
+      "n": "79",
+      "wr": 0.6329113924050633,
+      "exp": 0.5240437868748458,
+      "pf": 2.366774491656875,
+      "pm": 1.5686627527723418
+    },
+    "oos": {
+      "n": "45",
+      "wr": 0.35555555555555557,
+      "exp": -0.17520851298252202,
+      "pf": 0.7450525472921008,
+      "pm": 2.084931506849315,
+      "p": 0.8336199381731415
+    },
     "karar": "❌ OOS'ta tutmadı"
   },
   "ETH": {
-    "zaman_dilimi": "15m",
+    "zaman_dilimi": "4h",
     "yon": "both",
-    "rsi": false,
-    "stoch": false,
-    "wavetrend": true,
-    "esik": "dynamic",
-    "filtreler": [
-      "VTY",
-      "TREND",
-      "CONF"
-    ],
-    "kombinasyon": "WaveTrend · dinamik · Volatilite şoku + Trend (EMA200) + Onay mumu",
-    "is_isabet": 0.55,
-    "is_n": 80,
-    "oos_isabet": 0.2631578947368421,
-    "oos_n": 38,
-    "oos_taban": 0.3970338345864662,
-    "oos_beklenti_R": -0.6415970006518127,
-    "oos_p": 0.9680201055733503,
+    "aile": "REJIM",
+    "giris": "REJIM · yatayda dönüş · Stoch · volatilite şoku",
+    "cikis": "TP1>BE_3R",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": 3.0,
+      "tp1": 1.0,
+      "part": 0.0
+    },
+    "is": {
+      "n": "56",
+      "wr": 0.35714285714285715,
+      "exp": 0.7138452796522746,
+      "pf": 3.0710688537035393,
+      "pm": 1.1119634703196348
+    },
+    "oos": {
+      "n": "31",
+      "wr": 0.12903225806451613,
+      "exp": -0.1365177508511771,
+      "pf": 0.7369324614751281,
+      "pm": 1.4362861491628613,
+      "p": 0.7202618965138952
+    },
     "karar": "❌ OOS'ta tutmadı"
   },
   "NQ": {
-    "zaman_dilimi": "15m",
+    "zaman_dilimi": "5m",
     "yon": "both",
-    "rsi": false,
-    "stoch": true,
-    "wavetrend": false,
-    "esik": "dynamic",
-    "filtreler": [
-      "VOL",
-      "CONF"
-    ],
-    "kombinasyon": "Stoch · dinamik · Hacim şoku + Onay mumu",
-    "is_isabet": 0.546875,
-    "is_n": 64,
-    "oos_isabet": 0.43478260869565216,
-    "oos_n": 23,
-    "oos_taban": 0.3214741570129094,
-    "oos_beklenti_R": -0.07671322705289008,
-    "oos_p": 0.1735367087755197,
-    "karar": "❌ OOS'ta tutmadı"
+    "aile": "VWAP",
+    "giris": "VWAP · sapma dönüşü ±2.0σ · filtresiz",
+    "cikis": "IZ_SUREN_2.5ATR",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": null,
+      "trail": 2.5,
+      "trail_mode": "always"
+    },
+    "is": {
+      "n": "1273",
+      "wr": 0.22545168892380205,
+      "exp": 87320626.00356507,
+      "pf": 5.675898225782935,
+      "pm": 61.120063091482656
+    },
+    "oos": {
+      "n": "474",
+      "wr": 0.19831223628691982,
+      "exp": 35107716.411703475,
+      "pf": 464.5503990733928,
+      "pm": 153.49531914893618,
+      "p": 0.15917807404812498
+    },
+    "karar": "⚠️ Pozitif, anlamsız"
   },
   "SPX": {
-    "zaman_dilimi": "5m",
-    "yon": "long",
-    "rsi": true,
-    "stoch": true,
-    "wavetrend": true,
-    "esik": "dynamic",
-    "filtreler": [
-      "VOL",
-      "VTY"
-    ],
-    "kombinasyon": "RSI+Stoch+WaveTrend · dinamik · Hacim şoku + Volatilite şoku",
-    "is_isabet": 0.47368421052631576,
-    "is_n": 152,
-    "oos_isabet": 0.36764705882352944,
-    "oos_n": 68,
-    "oos_taban": 0.3187217667726284,
-    "oos_beklenti_R": -0.49818896443765903,
-    "oos_p": 0.23096171521764294,
-    "karar": "❌ OOS'ta tutmadı"
+    "zaman_dilimi": "15m",
+    "yon": "short",
+    "aile": "MA",
+    "giris": "MA · zaman serisi momentumu 72 bar",
+    "cikis": "IZ_SUREN_2.5ATR",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": null,
+      "trail": 2.5,
+      "trail_mode": "always"
+    },
+    "is": {
+      "n": "399",
+      "wr": 0.17543859649122806,
+      "exp": 9.38120175872481,
+      "pf": 5.6255107721474,
+      "pm": 21.159512195121952
+    },
+    "oos": {
+      "n": "180",
+      "wr": 0.2,
+      "exp": 2.057142889223093,
+      "pf": 1.7908606119604396,
+      "pm": 35.579220779220776,
+      "p": 0.27507662854005205
+    },
+    "karar": "⚠️ Pozitif, anlamsız"
   }
 }
