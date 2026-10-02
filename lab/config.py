@@ -7,12 +7,12 @@ import os
 # price_range: Dukascopy fiyat ölçeği otomatik doğrulama için makul aralık
 # cost_bps: gidiş-dönüş toplam maliyet (spread + komisyon), baz puan
 ASSETS = {
-    "XAU": {"source": "dukascopy", "symbol": "XAUUSD",        "yf": "GC=F",    "price_range": (500, 20000),   "cost_bps": 2.0},
-    "XAG": {"source": "dukascopy", "symbol": "XAGUSD",        "yf": "SI=F",    "price_range": (5, 500),       "cost_bps": 5.0},
-    "BTC": {"source": "binance",   "symbol": "BTCUSDT",       "yf": "BTC-USD", "price_range": (1000, 10**7),  "cost_bps": 8.0},
-    "ETH": {"source": "binance",   "symbol": "ETHUSDT",       "yf": "ETH-USD", "price_range": (50, 10**6),    "cost_bps": 8.0},
-    "NQ":  {"source": "dukascopy", "symbol": "USATECHIDXUSD", "yf": "NQ=F",    "price_range": (3000, 200000), "cost_bps": 2.0},
-    "SPX": {"source": "dukascopy", "symbol": "USA500IDXUSD",  "yf": "ES=F",    "price_range": (1000, 50000),  "cost_bps": 2.0},
+    "XAU": {"source": "dukascopy", "symbol": "XAUUSD",        "yf": "GC=F",    "price_range": (800, 9000),   "cost_bps": 2.0},
+    "XAG": {"source": "dukascopy", "symbol": "XAGUSD",        "yf": "SI=F",    "price_range": (8, 150),       "cost_bps": 5.0},
+    "BTC": {"source": "binance",   "symbol": "BTCUSDT",       "yf": "BTC-USD", "price_range": (2000, 10**6),  "cost_bps": 8.0},
+    "ETH": {"source": "binance",   "symbol": "ETHUSDT",       "yf": "ETH-USD", "price_range": (60, 50000),    "cost_bps": 8.0},
+    "NQ":  {"source": "dukascopy", "symbol": "USATECHIDXUSD", "yf": "NQ=F",    "price_range": (3000, 45000), "cost_bps": 2.0},
+    "SPX": {"source": "dukascopy", "symbol": "USA500IDXUSD",  "yf": "ES=F",    "price_range": (1200, 12000),  "cost_bps": 2.0},
 }
 
 # ───────────────────────── ZAMAN DİLİMLERİ ─────────────────────────
@@ -25,7 +25,15 @@ TIMEFRAMES = {
     "4h":  {"base": "1h", "rule": "4h"},
 }
 YEARS_INTRADAY = float(os.getenv("ATVS_YEARS_INTRADAY", "2"))   # 5m tabanı geçmişi
-YEARS_HOURLY   = float(os.getenv("ATVS_YEARS_HOURLY", "10"))     # 1h tabanı geçmişi
+YEARS_HOURLY   = float(os.getenv("ATVS_YEARS_HOURLY", "15"))     # kaynakta ne kadar varsa (BTC/ETH ~2017'den)
+CACHE_TAG = "v3"              # önbellek sürümü: değişince tüm veri temiz baştan indirilir
+VALIDATE_TOL = 0.06           # bağımsız kaynakla aylık oran sapma toleransı (CFD/futures baz farkı dahil)
+
+# ODAK MODU: kısa ZD'ler maliyetten dolayı elendi → yalnızca bu ZD ve aileler test edilir
+# (daha az test = daha güçlü istatistik; boş bırakılırsa hepsi)
+FOCUS_TFS = tuple(x for x in os.getenv("ATVS_TFS", "1h,4h").split(",") if x)
+FOCUS_FAMILIES = tuple(x for x in os.getenv("ATVS_FAMILIES", "MA,DONCH,SQZ,RSI2,REJIM,OSC,META").split(",") if x)
+SUSPECT_EXP, SUSPECT_WR = 1.5, 0.85   # OOS'ta bunları aşan sonuçlar 'veri şüphesi' sayılır ve seçimden çıkarılır     # 1h tabanı geçmişi
 
 # ───────────────────────── GÖSTERGELER (Pine ile birebir) ─────────────────────────
 RSI_LEN = 14

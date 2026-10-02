@@ -29,7 +29,7 @@ def collect(res: pd.DataFrame, aux: dict, asset: str, tf: str, k: int = 6) -> li
     """IS'e göre en sağlam K ayar (her girişin yalnızca en iyi çıkışı) → işlem listeleri."""
     cands = []
     for sc in EV.SCOPES:
-        r = res[(res[f"{sc}_is_n"] >= C.MIN_TRADES_IS) & (res[f"{sc}_is_exp"] > 0)]
+        r = res[(res[f"{sc}_is_n"] >= C.MIN_TRADES_IS) & (res[f"{sc}_is_exp"] > 0) & ~EV.suspect(res, sc, "is")]
         for _, row in r.iterrows():
             cands.append((_tstat(row, sc), sc, row))
     cands.sort(key=lambda x: -x[0])

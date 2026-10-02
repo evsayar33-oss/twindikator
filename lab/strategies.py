@@ -300,7 +300,7 @@ def fam_funding(book: Book, f: dict, funding: pd.Series | None):
 def build_all(df: pd.DataFrame, f: dict, tf_min: int, is_mask: np.ndarray, partner: pd.Series | None, pname: str,
               funding: pd.Series | None) -> Book:
     book = Book()
-    fam_osc(book, f)
+    fam_osc(book, f)   # REJIM bu ailenin olaylarını kullanır; OSC odakta değilse sonradan çıkarılır
     fam_regime(book, f)
     fam_rsi2(book, f)
     fam_donchian(book, f)
@@ -312,4 +312,6 @@ def build_all(df: pd.DataFrame, f: dict, tf_min: int, is_mask: np.ndarray, partn
     fam_season(book, f, df, tf_min, is_mask)
     fam_pair(book, f, partner, pname)
     fam_funding(book, f, funding)
+    if C.FOCUS_FAMILIES:
+        book.items = {k: v for k, v in book.items.items() if v[0] in C.FOCUS_FAMILIES}
     return book

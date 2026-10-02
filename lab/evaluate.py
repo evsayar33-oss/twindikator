@@ -27,11 +27,11 @@ def _p_gt0(R: np.ndarray) -> float:
     return 0.5 * math.erfc(t / math.sqrt(2))
 
 
-def stats(R: np.ndarray, months: float, base_wr: float) -> dict:
+def stats(R: np.ndarray, months: float, base_wr: float, base_exp: float = np.nan) -> dict:
     R = R[np.isfinite(R)]
     n = len(R)
     if n == 0:
-        return {"n": 0, "wr": np.nan, "exp": np.nan, "lb": -np.inf, "pf": np.nan, "pm": 0.0, "p": 1.0, "edge": np.nan}
+        return {"n": 0, "wr": np.nan, "exp": np.nan, "lb": -np.inf, "pf": np.nan, "pm": 0.0, "p": 1.0, "edge": np.nan, "alpha": np.nan}
     m = float(R.mean())
     sd = float(R.std(ddof=1)) if n > 1 else 0.0
     pos, neg = R[R > 0].sum(), -R[R < 0].sum()
@@ -40,6 +40,8 @@ def stats(R: np.ndarray, months: float, base_wr: float) -> dict:
         "n": n, "wr": wr, "exp": m, "lb": m - 1.96 * sd / math.sqrt(n) if n > 1 else -np.inf,
         "pf": float(pos / neg) if neg > 0 else np.inf, "pm": n / max(months, 1e-9), "p": _p_gt0(R),
         "edge": wr - base_wr,
+        # alfa: aynı çıkışla aynı dönemde RASTGELE girişin beklentisine göre fark → piyasanın kendi yükselişini (beta) ayıklar
+        "alpha": m - base_exp,
     }
 
 
@@ -65,6 +67,7 @@ def evaluate(df: pd.DataFrame, cost_bps: float, tf_min: int, partner: pd.Series 
             for part, m in (("is", is_mask), ("oos", ~is_mask)):
                 r = sm[side][valid & m]
                 base[(ex, side, part)] = float((r > 0).mean()) if len(r) else np.nan
+                base[(ex, side, part, "exp")] = float(np.nanmean(r)) if len(r) else np.nan
 
     rows = []
     for name, (fam, L, S) in book.items.items():
@@ -77,8 +80,10 @@ def evaluate(df: pd.DataFrame, cost_bps: float, tf_min: int, partner: pd.Series 
                 bl, bs = base[(ex, 1, part)], base[(ex, -1, part)]
                 nb = len(rl) + len(rs)
                 bb = (len(rl) * bl + len(rs) * bs) / nb if nb else np.nan
-                for sc, r, b in (("long", rl, bl), ("short", rs, bs), ("both", np.r_[rl, rs], bb)):
-                    for k, v in stats(r, months[part], b).items():
+                el, es = base[(ex, 1, part, "exp")], base[(ex, -1, part, "exp")]
+                eb = (len(rl) * el + len(rs) * es) / nb if nb else np.nan
+                for sc, r, b, be in (("long", rl, bl, el), ("short", rs, bs, es), ("both", np.r_[rl, rs], bb, eb)):
+                    for k, v in stats(r, months[part], b, be).items():
                         row[f"{sc}_{part}_{k}"] = v
             rows.append(row)
     res = pd.DataFrame(rows)
@@ -92,6 +97,7 @@ def evaluate(df: pd.DataFrame, cost_bps: float, tf_min: int, partner: pd.Series 
 def pick(res: pd.DataFrame, scope: str, mask: pd.Series | None = None) -> pd.Series | None:
     """IS'te seç: yeterli işlem + pozitif beklenti; beklentinin %95 alt sınırını maksimize et."""
     r = res if mask is None else res[mask]
+    r = r[~suspect(r, scope, "is")]
     n, e = r[f"{scope}_is_n"], r[f"{scope}_is_exp"]
     el = r[(n >= C.MIN_TRADES_IS) & (e > 0)]
     if el.empty:
@@ -101,12 +107,21 @@ def pick(res: pd.DataFrame, scope: str, mask: pd.Series | None = None) -> pd.Ser
     return el.loc[el[f"{scope}_is_lb"].idxmax()]
 
 
+def suspect(r, scope: str, part: str):
+    """Fiziksel olarak inandırıcı olmayan sonuç (veri hatası belirtisi): çok yüksek beklenti veya isabet."""
+    e, w, n = r[f"{scope}_{part}_exp"], r[f"{scope}_{part}_wr"], r[f"{scope}_{part}_n"]
+    return (e > C.SUSPECT_EXP) | ((w > C.SUSPECT_WR) & (n > 20))
+
+
 def verdict(row: pd.Series, sc: str, k: int = 1) -> str:
     """k: aynı tabloda yapılan OOS test sayısı → Bonferroni düzeltmesi (çoklu test şansını cezalandırır)."""
     n, e, p = row[f"{sc}_oos_n"], row[f"{sc}_oos_exp"], row[f"{sc}_oos_p"]
     if n < C.MIN_TRADES_OOS or not np.isfinite(e):
         return "⏳ OOS yetersiz"
-    if e > 0 and p < 0.05 / max(k, 1) and n >= 2 * C.MIN_TRADES_OOS:
+    if bool(suspect(row, sc, "oos")):
+        return "🚩 Veri şüphesi"
+    a = row.get(f"{sc}_oos_alpha", np.nan)
+    if e > 0 and p < 0.05 / max(k, 1) and n >= 2 * C.MIN_TRADES_OOS and (not np.isfinite(a) or a > 0):
         return "✅ Kanıtlı"
     if e > 0:
         return "⚠️ Pozitif, anlamsız"

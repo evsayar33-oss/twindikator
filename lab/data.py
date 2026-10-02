@@ -198,14 +198,27 @@ def _dk_frame(rec: np.ndarray, price_range: tuple[float, float]) -> pd.DataFrame
         if err < best_err:
             best, best_err = k, err
     o, c = p[:, 0], p[:, best]
-    # ölçek: medyan fiyat makul aralığa düşene kadar 10'un kuvvetleri
-    med = np.nanmedian(c)
+    # ölçek: AY BLOKLARI halinde belirlenir. Önce makul aralık, birden çok aday varsa önceki bloğa süreklilik.
     lo_r, hi_r = price_range
-    scale = 1.0
-    for e in range(0, 8):
-        if lo_r <= med / 10**e <= hi_r:
-            scale = 10**e
-            break
+    ts = rec[:, 0].astype("int64")
+    month = (pd.to_datetime(ts, unit="s", utc=True).year * 12 + pd.to_datetime(ts, unit="s", utc=True).month).to_numpy()
+    order = np.argsort(ts, kind="stable")
+    scale = np.ones(len(c))
+    prev = None
+    for mth in np.unique(month[order]):
+        m = month == mth
+        med = np.nanmedian(c[m])
+        if not np.isfinite(med) or med <= 0:
+            continue
+        cands = [10.0 ** e for e in range(0, 9) if lo_r <= med / 10.0 ** e <= hi_r]
+        if not cands:
+            cands = [10.0 ** e for e in range(0, 9)]
+        if prev is not None:
+            sc = min(cands, key=lambda k: abs(np.log(med / k) - np.log(prev)))
+        else:
+            sc = cands[0]
+        scale[m] = sc
+        prev = med / sc
     idx = pd.to_datetime(rec[:, 0].astype("int64"), unit="s", utc=True)
     df = pd.DataFrame({"open": o / scale, "high": hi / scale, "low": lo / scale, "close": c / scale, "volume": rec[:, 5]}, index=idx)
     df = df[(df["volume"] > 0) | (df["high"] > df["low"])]   # piyasa kapalı (işlemsiz, düz) dakikaları at
@@ -302,7 +315,7 @@ def _fetch(asset: str, base: str, start: datetime, end: datetime) -> pd.DataFram
 def load(asset: str, base: str, refresh: bool = True) -> tuple[pd.DataFrame, str]:
     """Önbellekli yükleme. Dönen: (veri, kaynak açıklaması)."""
     os.makedirs(C.DATA_DIR, exist_ok=True)
-    path = os.path.join(C.DATA_DIR, f"{asset}_{base}.csv.gz")
+    path = os.path.join(C.DATA_DIR, f"{C.CACHE_TAG}_{asset}_{base}.csv.gz")
     years = C.YEARS_INTRADAY if base == "5m" else C.YEARS_HOURLY
     end = _now()
     start = end - timedelta(days=int(365.25 * years))
@@ -325,6 +338,82 @@ def load(asset: str, base: str, refresh: bool = True) -> tuple[pd.DataFrame, str
     if not df.empty:
         df.to_csv(path, compression="gzip")
     return df, src
+
+
+# ═════════════════════════ VERİ DOĞRULAMA ═════════════════════════
+_YF_DAILY: dict[str, pd.Series] = {}
+
+
+def _yf_daily(ticker: str) -> pd.Series | None:
+    if ticker in _YF_DAILY:
+        return _YF_DAILY[ticker]
+    try:
+        import yfinance as yf
+        d = yf.download(ticker, period="max", interval="1d", progress=False, auto_adjust=False)
+        if isinstance(d.columns, pd.MultiIndex):
+            d.columns = d.columns.get_level_values(0)
+        s = d["Close"].dropna()
+        s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
+    except Exception:
+        s = None
+    _YF_DAILY[ticker] = s
+    return s
+
+
+def validate(asset: str, base: str, df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Bağımsız kaynakla (yfinance günlük kapanış) ay ay karşılaştırma.
+    • Oran 10'un kuvvetine yakınsa (ölçek hatası) → o ay düzeltilir
+    • Oran %{tol} dışında ve düzeltilemiyorsa → o ay verisi ATILIR
+    • Ayrıca: aşırı bar sıçramaları (medyan mutlak getirinin 25 katı ve > %4) sayılır ve atılır"""
+    rep = {"asset": asset, "base": base, "rows_in": len(df), "fixed_months": 0, "dropped_months": 0,
+           "spikes": 0, "ref": C.ASSETS[asset]["yf"], "status": "doğrulanamadı (yfinance yok)", "median_dev": np.nan}
+    if df.empty:
+        rep["status"] = "veri yok"
+        return df, rep
+    df = df.copy()
+    # 1) sıçrama temizliği
+    lr = np.log(df["close"]).diff().abs()
+    med = lr.rolling(500, min_periods=50).median()
+    spike = (lr > 25 * med) & (lr > 0.04)
+    # yalnızca geri dönen (tek bar) sıçramalar: sonraki bar da büyük ters hareket yapıyorsa
+    back = np.log(df["close"]).diff().shift(-1).abs() > 0.5 * lr
+    bad = spike & back
+    rep["spikes"] = int(bad.sum())
+    df = df[~bad]
+    # 2) bağımsız referansla ay ay oran
+    ref = _yf_daily(C.ASSETS[asset]["yf"])
+    if ref is None or ref.empty:
+        rep["rows_out"] = len(df)
+        return df, rep
+    dclose = df["close"].resample("1D").last().dropna()
+    dclose.index = dclose.index.tz_localize(None).normalize()
+    j = pd.concat([dclose.rename("x"), ref.rename("r")], axis=1, join="inner").dropna()
+    if len(j) < 20:
+        rep["status"] = "referansla örtüşme yok"
+        rep["rows_out"] = len(df)
+        return df, rep
+    ratio = (j["x"] / j["r"]).groupby(j.index.to_period("M")).median()
+    tol = C.VALIDATE_TOL
+    pm = df.index.tz_localize(None).to_period("M")
+    keep = np.ones(len(df), bool)
+    for per, rt in ratio.items():
+        if abs(np.log(rt)) <= np.log(1 + tol):
+            continue
+        k = round(np.log10(rt))
+        m = (pm == per)
+        if k != 0 and abs(np.log(rt / 10.0 ** k)) <= np.log(1 + tol):
+            df.loc[m, ["open", "high", "low", "close"]] /= 10.0 ** k
+            rep["fixed_months"] += 1
+        else:
+            keep &= ~np.asarray(m)
+            rep["dropped_months"] += 1
+    df = df[keep]
+    after = ratio.where(np.abs(np.log(ratio)) <= np.log(1 + tol))
+    rep["median_dev"] = float(np.nanmedian(np.abs(after - 1))) if after.notna().any() else np.nan
+    rep["months"] = int(len(ratio))
+    rep["rows_out"] = len(df)
+    rep["status"] = "temiz" if rep["fixed_months"] == rep["dropped_months"] == rep["spikes"] == 0 else "düzeltildi"
+    return df, rep
 
 
 # ═════════════════════════ FONLAMA ORANI (kripto, ücretsiz) ═════════════════════════
