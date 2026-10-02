@@ -1,58 +1,67 @@
-# ATVS Lab
+# ATVS Lab v2
 
-XAU · XAG · BTC · ETH · NQ · SPX için **5m / 15m / 30m / 1h / 4h** zaman dilimlerinde RSI, Stoch ve WaveTrend kombinasyonlarını test eder. Hacim şoku, volatilite şoku, trend ve onay mumu filtreleri de teste dahildir. Sonuçta her varlık için **en yüksek isabeti veren zaman dilimini ve kombinasyonu** raporlar. Tamamen ücretsiz veri kullanır.
+XAU · XAG · BTC · ETH · NQ · SPX varlıklarını **5m / 15m / 30m / 1h / 4h** zaman dilimlerinde test eder. Kapsam: **13 strateji ailesi** (yaklaşık 280 giriş) × **11 çıkış yöntemi** × 3 yön (iki yön / LONG / SHORT). Sonuçta her varlık için **OOS'ta en yüksek beklentiyi (R) veren** ayarı raporlar. Tamamen ücretsiz veri kullanır.
 
-## Ne test ediliyor
+## Strateji aileleri
 
-| Boyut | Seçenekler |
+| Aile | İçerik |
 |---|---|
-| Osilatörler | RSI, Stoch, WaveTrend → tekli, ikili, üçlü (7 alt küme) |
-| Eşik | sabit 80/20 · dinamik (300 bar persentil 90/10) |
-| Filtreler | Hacim şoku · Volatilite şoku · Trend (EMA200) · Onay mumu → 16 kombinasyon |
-| Yön | iki yön · yalnız LONG · yalnız SHORT |
+| OSC | RSI / Stoch / WaveTrend dönüşü: 7 alt küme × sabit veya dinamik eşik × 16 filtre (hacim şoku, volatilite şoku, EMA200, onay mumu) |
+| REJIM | Rejim anahtarı: yatay piyasada dönüş, trendde geri çekilme ya da ikisinin birleşimi (verimlilik oranı persentili) |
+| RSI2 | Connors tipi RSI(2) aşırılığı, trend filtreli ya da filtresiz |
+| DONCH | Donchian 20/55 kırılımı: filtresiz, hacim şoku, trend ya da sıkışma sonrası |
+| MA | EMA 9/21, 20/50, 50/200 kesişimleri ve zaman serisi momentumu |
+| SQZ | Bollinger–Keltner sıkışmasının çözülmesi |
+| VWAP | Seans VWAP'ından sapma sonrası dönüş ve VWAP kırılımı (≤1h) |
+| ORB | New York 09:30 ve Londra 08:00 açılış aralığı kırılımı (≤30m) |
+| IMOM | Gün içi momentum: sabah getirisinin yönünde 15:30 NY işlemi (≤30m) |
+| SEZON | Saat etkisi. Yalnızca IS döneminde öğrenilir |
+| PAIR | Eş varlığa göre göreli değer dönüşü (XAU/XAG, BTC/ETH, NQ/SPX) |
+| LEADLAG | Eş varlıktaki ani hareketi takip |
+| FUNDING | BTC/ETH fonlama oranı uç değerleri (kalabalığa karşı işlem) |
+| META | Gradient boosting: bütün ailelerin adaylarından hangisinin çalışacağını öğrenir. IS sonuçları katlama dışı tahminden gelir |
 
-Her varlık ve zaman dilimi için 224 kombinasyon test edilir, toplamda varlık başına 3.360 test yapılır.
+## Çıkış yöntemleri
 
-**Sinyal:** Seçilen osilatörlerin tümü son 6 bar içinde aşırı bölgeye değmiş olmalı ve bunlardan herhangi biri bölgeden çıkmalı.
-**İşlem:** Giriş sonraki barın açılışında yapılır. Çıkış TP 1.5 ATR, SL 1 ATR ya da 24 bar sonunda olur. Maliyet dahildir. Aynı barda hem TP hem SL görülürse işlem zarar sayılır.
+1R = ilk stop mesafesi.
+
+| Ad | Kural |
+|---|---|
+| SABIT_1R / 1.5R / 2R / 3R | Stop 1 ATR, sabit hedef |
+| TP1>BE_2R / 3R | 1R'de stop girişe çekilir, hedef 2R veya 3R |
+| %50@1R>BE_2R / 3R | 1R'de pozisyonun yarısı kapanır, stop girişe çekilir, kalan 2R veya 3R'ye gider |
+| %50@1R>BE_IZ | 1R'de yarısı kapanır, stop girişe çekilir, kalan 2 ATR iz süren stop ile yönetilir |
+| GENIS_%50@1R>BE_3R | Aynı mantık, ilk stop 1.5 ATR |
+| IZ_SUREN_2.5ATR | Hedef yok, 2.5 ATR iz süren stop |
+
+Tüm yöntemler için ortak kurallar:
+- Zaman bariyeri 48 bar.
+- Aynı barda hem hedef hem stop görülürse stop sayılır (muhafazakâr).
+- Stopu girişe çekme kuralı bir sonraki bardan itibaren geçerli olur.
+- Maliyet dahildir.
 
 ## Neden güvenilir
 
-- **IS/OOS ayrımı:** En iyi ayar verinin yalnızca ilk %70'inde seçilir. Raporda asıl ölçü, seçim sırasında görülmemiş **son %30'luk dilimin (OOS)** isabetidir.
-- **Taban karşılaştırması:** Her sonuç, aynı dönemde rastgele girişin isabetiyle karşılaştırılır. Böylece BTC'nin yükseliş eğilimi gibi piyasa eğilimleri sinyal başarısı sanılmaz.
-- **Wilson alt sınırı:** Seçimde isabet oranı yerine Wilson alt sınırı kullanılır. Az işlemle şans eseri yüksek çıkan isabet bu sayede elenir.
-- **Karar etiketleri:** ✅ Kanıtlı (OOS'ta tabanın üstünde, beklenti pozitif, p<0.05) · ⚠️ Zayıf · ❌ Tutmadı.
-- **Bileşen katkısı:** Her filtrenin isabeti kaç puan değiştirdiği ayrı ayrı ölçülür.
+- **IS/OOS ayrımı:** Seçim verinin ilk %70'inde, beklentinin %95 alt sınırına göre yapılır. Karar, seçimde hiç görülmemiş son %30'luk dilimde verilir.
+- **✅ Kanıtlı koşulları:** OOS'ta pozitif beklenti, en az 30 işlem ve **Bonferroni düzeltmeli** p < 0.05/k. Burada k, o tablodaki test sayısıdır.
+- **Sahte veri testi:** Rastgele sentetik veride 6 varlığın hiçbirinde ✅ çıkmadı. Yani sistem şans eseri kazananları eliyor.
+- **Sağlamlık satırı:** IS'te en iyi 20 ayarın kaçının OOS'ta pozitif kaldığını gösterir.
+- **Ek kontroller:** Kararlılık blokları ve maksimum düşüş (R) raporlanır.
 
-## Veri (ücretsiz)
+## Çalıştırma
 
-- **BTC, ETH:** Binance Vision. ABD IP'lerinden de erişilebilen genel arşiv kullanılır.
-- **XAU, XAG, NQ, SPX:** Dukascopy CFD verisi (23 saat). Hacim olarak tick hacmi kullanılır.
-- **Yedek:** yfinance. Geçmişi kısa olduğu için yalnızca diğer kaynaklar çalışmazsa devreye girer.
+1. Repoya bu dosyaları yükle. Eski `lab/engine.py` artık kullanılmıyor; silebilirsin.
+2. **Actions → ATVS Lab → Run workflow** ile başlat.
+3. Sonucu iki yerden okuyabilirsin: çalıştırma sayfasındaki **Summary** sekmesi ya da depodaki `reports/RAPOR.md`.
 
-5m, 15m ve 30m testleri için **2 yıllık**, 1h ve 4h testleri için **6 yıllık** geçmiş indirilir. Süreler `lab/config.py` dosyasından değiştirilebilir. İndirilen veri önbelleğe alınır; sonraki çalıştırmalarda yalnızca yeni veri indirilir.
+Veri önbellekte duruyor; sonraki çalıştırmalar yalnızca yeni veriyi indirir. Geçmiş süresi `lab/config.py` içindeki `YEARS_INTRADAY` (varsayılan 2) ve `YEARS_HOURLY` (varsayılan 6) ile ayarlanır.
 
-## Çalıştırma (telefondan)
+## TradingView
 
-1. Bu klasörü yeni bir GitHub deposuna yükle.
-2. **Actions → ATVS Lab → Run workflow** ile çalıştır. İlk çalıştırma veri indirdiği için yaklaşık 20-40 dakika sürer.
-3. Sonucu iki yerden okuyabilirsin: çalıştırma sayfasındaki **Summary** sekmesi ya da depodaki `reports/RAPOR.md` dosyası.
-4. Laboratuvar her pazar yeni veriyle kendiliğinden yeniden çalışır. Böylece en iyi ayar piyasa değiştikçe güncellenir.
-
-## TradingView'da kullanma
-
-`pine/ATVS_Lab.pine` dosyası laboratuvarla birebir aynı mantığı uygular. Kullanmak için:
-
-1. Varlığın grafiğini rapordaki zaman diliminde aç.
-2. Rapordaki kombinasyonu indikatörün ayarlarında işaretle: osilatörler, eşik tipi, filtreler ve yön.
-3. Maliyet ayarını varlığa göre gir: XAU 2 · XAG 5 · BTC/ETH 8 · NQ/SPX 2.
-
-Grafikteki isabet tablosu, laboratuvarın sonucuyla aynı yöntemle hesaplanır ve çapraz kontrol işlevi görür.
+`pine/ATVS_Lab.pine` şimdilik yalnızca OSC ailesini kapsar. Diğer ailelerden kazanan çıkarsa, o stratejinin Pine sürümü laboratuvarla birebir aynı mantıkla ayrıca yazılacak.
 
 ## Çıktılar
 
-- `reports/RAPOR.md`: varlık başına zaman dilimi karşılaştırması, yön ayrımı, tekli göstergeler, bileşen katkısı, kararlılık ve en iyi 10 kombinasyon
-- `reports/en_iyi.json`: Pine'a girilecek ayarlar
-- `reports/tum_sonuclar.csv.gz`: bütün testlerin ham sonuçları
-
-Yerelde denemek için `python run_lab.py --synthetic` komutu internet gerektirmeden çalışır. Sentetik veriyle yalnızca boru hattı test edilir; sonuçları anlamsızdır.
+- `reports/RAPOR.md`: özet, varlık × zaman dilimi ısı tablosu, aile sıralaması, çıkış yöntemi karşılaştırması, sağlamlık, kararlılık ve ilk 15 ayar
+- `reports/en_iyi.json`: varlık başına seçilen ayar
+- `reports/secili_sonuclar.csv.gz`: her varlık × zaman dilimi için IS'te ilk 150 sonuç ve her ailenin en iyisi
