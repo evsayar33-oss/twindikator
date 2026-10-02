@@ -25,7 +25,7 @@ TIMEFRAMES = {
     "4h":  {"base": "1h", "rule": "4h"},
 }
 YEARS_INTRADAY = float(os.getenv("ATVS_YEARS_INTRADAY", "2"))   # 5m tabanı geçmişi
-YEARS_HOURLY   = float(os.getenv("ATVS_YEARS_HOURLY", "6"))     # 1h tabanı geçmişi
+YEARS_HOURLY   = float(os.getenv("ATVS_YEARS_HOURLY", "10"))     # 1h tabanı geçmişi
 
 # ───────────────────────── GÖSTERGELER (Pine ile birebir) ─────────────────────────
 RSI_LEN = 14
@@ -87,6 +87,13 @@ META_ON = True
 META_EXIT = "%50@1R>BE_2R"    # meta-modelin öğrendiği etiket bu çıkışla üretilir
 META_FOLDS = 4                # IS içinde genişleyen pencere CV (katlama dışı tahmin)
 META_KEEP = 0.35              # olasılığı en yüksek %35'lik aday dilimi işlenir
+
+# ───────────────────────── PORTFÖY & İFLAS RİSKİ ─────────────────────────
+PORT_MIN_T = 1.5              # IS beklentisinin t-istatistiği alt sınırı
+PORT_PER_ASSET = 3            # varlık başına en fazla strateji
+PORT_MAX = 15                 # toplam en fazla strateji
+PORT_RISKS = (0.0025, 0.005, 0.01)   # işlem başına kasa riski: %0.25 / %0.5 / %1
+PORT_DAILY_LIMIT = 0.03       # günlük zarar limiti (kasanın %3'ü)
 
 # ───────────────────────── İSTATİSTİK ─────────────────────────
 IS_FRACTION = 0.70            # ilk %70 seçim (in-sample), son %30 doğrulama (out-of-sample)
