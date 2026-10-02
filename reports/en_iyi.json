@@ -1,0 +1,128 @@
+{
+  "XAU": {
+    "zaman_dilimi": "5m",
+    "yon": "both",
+    "rsi": true,
+    "stoch": true,
+    "wavetrend": false,
+    "esik": "static",
+    "filtreler": [
+      "VOL"
+    ],
+    "kombinasyon": "RSI+Stoch · sabit 80/20 · Hacim şoku",
+    "is_isabet": 0.5901639344262295,
+    "is_n": 61,
+    "oos_isabet": 0.42857142857142855,
+    "oos_n": 28,
+    "oos_taban": 0.32416186928547247,
+    "oos_beklenti_R": -0.10363792445041017,
+    "oos_p": 0.16391628924456664,
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "XAG": {
+    "zaman_dilimi": "5m",
+    "yon": "both",
+    "rsi": true,
+    "stoch": true,
+    "wavetrend": true,
+    "esik": "static",
+    "filtreler": [
+      "VOL",
+      "VTY"
+    ],
+    "kombinasyon": "RSI+Stoch+WaveTrend · sabit 80/20 · Hacim şoku + Volatilite şoku",
+    "is_isabet": 0.49333333333333335,
+    "is_n": 75,
+    "oos_isabet": 0.4444444444444444,
+    "oos_n": 36,
+    "oos_taban": 0.3186013986013986,
+    "oos_beklenti_R": -0.1640112567328732,
+    "oos_p": 0.07469720415950751,
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "BTC": {
+    "zaman_dilimi": "15m",
+    "yon": "both",
+    "rsi": false,
+    "stoch": false,
+    "wavetrend": true,
+    "esik": "static",
+    "filtreler": [
+      "VTY",
+      "TREND"
+    ],
+    "kombinasyon": "WaveTrend · sabit 80/20 · Volatilite şoku + Trend (EMA200)",
+    "is_isabet": 0.5666666666666667,
+    "is_n": 60,
+    "oos_isabet": 0.4,
+    "oos_n": 25,
+    "oos_taban": 0.3938095238095238,
+    "oos_beklenti_R": -0.3801395572555188,
+    "oos_p": 0.5561910927718967,
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "ETH": {
+    "zaman_dilimi": "15m",
+    "yon": "both",
+    "rsi": false,
+    "stoch": false,
+    "wavetrend": true,
+    "esik": "dynamic",
+    "filtreler": [
+      "VTY",
+      "TREND",
+      "CONF"
+    ],
+    "kombinasyon": "WaveTrend · dinamik · Volatilite şoku + Trend (EMA200) + Onay mumu",
+    "is_isabet": 0.55,
+    "is_n": 80,
+    "oos_isabet": 0.2631578947368421,
+    "oos_n": 38,
+    "oos_taban": 0.3970338345864662,
+    "oos_beklenti_R": -0.6415970006518127,
+    "oos_p": 0.9680201055733503,
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "NQ": {
+    "zaman_dilimi": "15m",
+    "yon": "both",
+    "rsi": false,
+    "stoch": true,
+    "wavetrend": false,
+    "esik": "dynamic",
+    "filtreler": [
+      "VOL",
+      "CONF"
+    ],
+    "kombinasyon": "Stoch · dinamik · Hacim şoku + Onay mumu",
+    "is_isabet": 0.546875,
+    "is_n": 64,
+    "oos_isabet": 0.43478260869565216,
+    "oos_n": 23,
+    "oos_taban": 0.3214741570129094,
+    "oos_beklenti_R": -0.07671322705289008,
+    "oos_p": 0.1735367087755197,
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "SPX": {
+    "zaman_dilimi": "5m",
+    "yon": "long",
+    "rsi": true,
+    "stoch": true,
+    "wavetrend": true,
+    "esik": "dynamic",
+    "filtreler": [
+      "VOL",
+      "VTY"
+    ],
+    "kombinasyon": "RSI+Stoch+WaveTrend · dinamik · Hacim şoku + Volatilite şoku",
+    "is_isabet": 0.47368421052631576,
+    "is_n": 152,
+    "oos_isabet": 0.36764705882352944,
+    "oos_n": 68,
+    "oos_taban": 0.3187217667726284,
+    "oos_beklenti_R": -0.49818896443765903,
+    "oos_p": 0.23096171521764294,
+    "karar": "❌ OOS'ta tutmadı"
+  }
+}
