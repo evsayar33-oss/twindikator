@@ -133,7 +133,8 @@ def analyse(a, tf_res, tf_aux, srcs) -> dict:
     out = {"srcs": srcs, "tf": {}}
     for tf, res in tf_res.items():
         sc, r = _best_any_scope(res)
-        out["tf"][tf] = {"sc": sc, "row": r, "bars": tf_aux[tf]["bars"], "span": tf_aux[tf]["span"], "meta": tf_aux[tf]["meta"]}
+        out["tf"][tf] = {"sc": sc, "row": r, "bars": tf_aux[tf]["bars"], "span": tf_aux[tf]["span"], "meta": tf_aux[tf]["meta"],
+                         "cost_R": tf_aux[tf]["cost_R"]}
     cands = [(tf, d["sc"], d["row"]) for tf, d in out["tf"].items() if d["row"] is not None]
     if not cands:
         return out
@@ -240,10 +241,10 @@ def render(summary: dict, synth: bool) -> str:
         if "row" not in s:
             continue
         L += [f"## {a}", "", f"Veri: 5m tabanı `{s['srcs'].get('5m')}` · 1h tabanı `{s['srcs'].get('1h')}`", ""]
-        L += ["| ZD | Bar | IS dönemi | OOS dönemi | Meta-model |", "|---|---|---|---|---|"]
+        L += ["| ZD | Bar | IS dönemi | OOS dönemi | Maliyet / işlem | Meta-model |", "|---|---|---|---|---|---|"]
         for tf, d in s["tf"].items():
             (a0, a1), (b0, b1) = d["span"]["is"], d["span"]["oos"]
-            L.append(f"| {tf} | {d['bars']:,} | {a0:%Y-%m-%d} → {a1:%Y-%m-%d} | {b0:%Y-%m-%d} → {b1:%Y-%m-%d} | {d['meta'] or 'çalıştı'} |")
+            L.append(f"| {tf} | {d['bars']:,} | {a0:%Y-%m-%d} → {a1:%Y-%m-%d} | {b0:%Y-%m-%d} → {b1:%Y-%m-%d} | {d['cost_R']:.3f}R | {d['meta'] or 'çalıştı'} |")
         L += ["", "### Strateji aileleri (her aile için tüm ZD ve yönlerde IS'te seçilen en iyi, OOS'a göre sıralı)", "",
               "| Aile | ZD | Yön | Giriş | Çıkış | IS beklenti (n) | OOS beklenti (n) | OOS isabet | OOS PF | p | Karar |",
               "|---|---|---|---|---|---|---|---|---|---|---|"]
