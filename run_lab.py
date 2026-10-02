@@ -20,6 +20,7 @@ import pandas as pd
 from lab import config as C
 from lab import data as D
 from lab import evaluate as EV
+from lab import portfolio as PF
 
 SC_TR = {"both": "iki yön", "long": "LONG", "short": "SHORT"}
 TF_MIN = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}
@@ -73,7 +74,7 @@ def run(assets: list[str], refresh: bool, synth: bool):
         if funding[a] is not None:
             print(f"{a} fonlama: {len(funding[a]):,} kayıt")
 
-    summary, keep_rows = {}, []
+    summary, keep_rows, cands = {}, [], []
     for a in assets:
         t0 = time.time()
         print(f"\n═══ {a} ═══")
@@ -97,6 +98,7 @@ def run(assets: list[str], refresh: bool, synth: bool):
             res.insert(0, "tf", tf)
             res.insert(0, "asset", a)
             aux["bars"] = len(df)
+            cands += PF.collect(res, aux, a, tf)
             tf_res[tf], tf_aux[tf] = res, aux
             b = EV.pick(res, "both")
             print(f"  {tf}: {len(df):,} bar · {aux['n_entries']} giriş × {len(C.EXITS)} çıkış · "
@@ -112,7 +114,13 @@ def run(assets: list[str], refresh: bool, synth: bool):
             os.path.join(C.OUT_DIR, "secili_sonuclar.csv.gz"), index=False, compression="gzip")
     with open(os.path.join(C.OUT_DIR, "en_iyi.json"), "w", encoding="utf-8") as fh:
         json.dump({a: s.get("json", {}) for a, s in summary.items()}, fh, ensure_ascii=False, indent=2, default=str)
-    md = render(summary, synth)
+    port = PF.run(cands)
+    if port.get("selected"):
+        pd.concat([c["trades"].assign(strateji=f"{c['asset']} {c['tf']} {c['entry']} | {c['exit']} | {c['scope']}") for c in port["selected"]]
+                  ).sort_values("time").to_csv(os.path.join(C.OUT_DIR, "portfoy_islemler.csv.gz"), index=False, compression="gzip")
+        pd.DataFrame({f"risk_%{100 * lv['risk']:.2g}": lv["equity"] for lv in port["levels"]}).to_csv(os.path.join(C.OUT_DIR, "portfoy_kasa_oos.csv"))
+        print(f"Portföy: {len(port['selected'])} strateji")
+    md = render(summary, synth, port)
     with open(os.path.join(C.OUT_DIR, "RAPOR.md"), "w", encoding="utf-8") as fh:
         fh.write(md)
     if os.getenv("GITHUB_STEP_SUMMARY"):
@@ -191,7 +199,7 @@ def analyse(a, tf_res, tf_aux, srcs) -> dict:
 
 
 # ───────────────────────── RAPOR ─────────────────────────
-def render(summary: dict, synth: bool) -> str:
+def render(summary: dict, synth: bool, port: dict | None = None) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     L = [f"# ATVS Lab v2 Raporu — {now}", ""]
     if synth:
@@ -220,6 +228,8 @@ def render(summary: dict, synth: bool) -> str:
         L.append(f"| **{a}** | {s['tf_sel']} | {SC_TR[sc]} | {r['entry']} | {r['exit']} | {rr(r[f'{sc}_is_exp'])} ({int(r[f'{sc}_is_n'])}) | "
                  f"**{rr(r[f'{sc}_oos_exp'])}** ({int(r[f'{sc}_oos_n'])}) | {pct(r[f'{sc}_oos_wr'])} | {f2(r[f'{sc}_oos_pf'])} | "
                  f"{r[f'{sc}_oos_pm']:.1f} | {f2(s['dd'][1])}R | {pv(r[f'{sc}_oos_p'])} | {s['verdict']} |")
+    if port is not None:
+        L += [""] + PF.render(port)
     # ısı tablosu
     tfs = list(C.TIMEFRAMES)
     L += ["", "## Varlık × zaman dilimi — her hücrede IS'te seçilen en iyinin OOS beklentisi", "",
@@ -269,7 +279,7 @@ def render(summary: dict, synth: bool) -> str:
         for i, (_, r) in enumerate(s["top"].iterrows(), 1):
             L.append(f"| {i} | {r['entry']} | {r['exit']} | {rr(r['both_is_exp'])} ({int(r['both_is_n'])}) | {rr(r['both_oos_exp'])} ({int(r['both_oos_n'])}) | {pct(r['both_oos_wr'])} |")
         L.append("")
-    L += ["---", "Ayrıntı: `reports/secili_sonuclar.csv.gz` (her varlık×ZD için IS'te ilk 150 + her ailenin en iyisi) · `reports/en_iyi.json`", ""]
+    L += ["---", "Ayrıntı: `reports/secili_sonuclar.csv.gz` · `reports/en_iyi.json` · `reports/portfoy_islemler.csv.gz` · `reports/portfoy_kasa_oos.csv`", ""]
     return "\n".join(L)
 
 

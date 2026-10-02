@@ -1,4 +1,4 @@
-# ATVS Lab v2
+# ATVS Lab v2.2
 
 XAU · XAG · BTC · ETH · NQ · SPX varlıklarını **5m / 15m / 30m / 1h / 4h** zaman dilimlerinde test eder. Kapsam: **13 strateji ailesi** (yaklaşık 280 giriş) × **11 çıkış yöntemi** × 3 yön (iki yön / LONG / SHORT). Sonuçta her varlık için **OOS'ta en yüksek beklentiyi (R) veren** ayarı raporlar. Tamamen ücretsiz veri kullanır.
 
@@ -56,6 +56,31 @@ Tüm yöntemler için ortak kurallar:
 
 Veri önbellekte duruyor; sonraki çalıştırmalar yalnızca yeni veriyi indirir. Geçmiş süresi `lab/config.py` içindeki `YEARS_INTRADAY` (varsayılan 2) ve `YEARS_HOURLY` (varsayılan 6) ile ayarlanır.
 
+## Portföy ve iflas riski (v2.2)
+
+Laboratuvar, IS döneminde en sağlam görünen stratejileri tek bir portföyde birleştirir. Seçim kuralları:
+
+- IS t-istatistiği en az 1.5 olmalı.
+- Varlık başına en fazla 3 strateji alınır; aynı varlıkta her aileden yalnızca bir tane.
+- Toplamda en fazla 15 strateji.
+
+Portföy, her işlemde kasanın %0.25, %0.5 ve %1'i riske atılarak ayrı ayrı simüle edilir. Günlük zarar limiti %3'tür: bu limite ulaşılınca o gün yeni işlem açılmaz. Her strateji yalnızca kendi OOS döneminde işlem yapar.
+
+Rapor şunları gösterir:
+
+- günde ortalama işlem sayısı
+- isabet oranı
+- toplam ve yıllık getiri
+- maksimum düşüş ve en uzun düşüş süresi
+- pozitif gün ve pozitif ay oranı
+
+Monte Carlo analizi, 2.000 farklı 1 yıllık senaryo üretir ve her risk seviyesi için şu olasılıkları hesaplar:
+
+- yılı zararla kapama
+- kasanın %20, %30 veya %50 düşmesi
+
+Bu analiz için 1h tabanının geçmişi 10 yıla uzatıldı. Önbellekteki eski veri otomatik olarak tamamlanır.
+
 ## TradingView
 
 `pine/ATVS_Lab.pine` şimdilik yalnızca OSC ailesini kapsar. Diğer ailelerden kazanan çıkarsa, o stratejinin Pine sürümü laboratuvarla birebir aynı mantıkla ayrıca yazılacak.
@@ -64,4 +89,5 @@ Veri önbellekte duruyor; sonraki çalıştırmalar yalnızca yeni veriyi indiri
 
 - `reports/RAPOR.md`: özet, varlık × zaman dilimi ısı tablosu, aile sıralaması, çıkış yöntemi karşılaştırması, sağlamlık, kararlılık ve ilk 15 ayar
 - `reports/en_iyi.json`: varlık başına seçilen ayar
+- `reports/portfoy_islemler.csv.gz`, `reports/portfoy_kasa_oos.csv`: portföy işlemleri ve OOS kasa eğrisi
 - `reports/secili_sonuclar.csv.gz`: her varlık × zaman dilimi için IS'te ilk 150 sonuç ve her ailenin en iyisi
