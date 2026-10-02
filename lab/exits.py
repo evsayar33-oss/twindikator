@@ -18,6 +18,7 @@ from . import config as C
 
 
 R_CAP = 20.0
+GAP_DAYS = 4
 
 
 def _shift(x: np.ndarray, k: int) -> np.ndarray:
@@ -34,6 +35,11 @@ def simulate(df: pd.DataFrame, atr: pd.Series, cost_bps: float, cfg: dict) -> di
     entry0 = _shift(o, 1)
     valid = np.isfinite(entry0) & np.isfinite(a) & (a > 0)
     valid[max(0, n - H - 1):] = False
+    # veri boşluğu koruması: işlem penceresinde (giriş → zaman bariyeri) 4 günden uzun boşluk varsa işlem sayılmaz
+    gap = np.r_[False, np.diff(df.index.values.astype("datetime64[s]").astype(np.int64)) > GAP_DAYS * 86400].astype(np.int8)
+    gap_ahead = pd.Series(gap[::-1]).rolling(H + 1, min_periods=1).max().to_numpy()[::-1].astype(bool)
+    gap_ahead = np.r_[gap_ahead[1:], False]   # (i, i+H] penceresi
+    valid &= ~gap_ahead
     out = {"valid": valid}
     sl_atr = cfg["sl_atr"]
     tp, tp1, part = cfg.get("tp"), cfg.get("tp1"), cfg.get("part", 0.0)

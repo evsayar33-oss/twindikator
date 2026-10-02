@@ -26,21 +26,41 @@ _session = requests.Session()
 _session.headers.update(UA)
 
 
-def _get(url: str, params: dict | None = None, tries: int = 4, timeout: int = 30) -> requests.Response | None:
+def _get(url: str, params: dict | None = None, tries: int = 6, timeout: int = 30) -> requests.Response | None:
+    """Kalıcı hata (404/400/403/451) hemen döner; diğer her hata (429, 5xx, ağ) üstel bekleme ile yeniden denenir."""
     for k in range(tries):
         try:
             r = _session.get(url, params=params, timeout=timeout)
-            if r.status_code == 200:
+            if r.status_code in (200, 404, 400, 403, 451):
                 return r
-            if r.status_code in (404, 400):
-                return r
-            if r.status_code in (418, 429, 451, 403):
-                time.sleep(2.0 * (k + 1))
-                if r.status_code in (451, 403):
-                    return r
         except requests.RequestException:
-            time.sleep(1.5 * (k + 1))
+            pass
+        time.sleep(min(30.0, 1.5 * 2 ** k))
     return None
+
+
+def _fetch_complete(keys: list, fn, threads: int = 4, rounds: int = 4, label: str = "") -> dict:
+    """Tüm parçaları indir; eksik kalanları (ağ hatası / kısıtlama / boş yanıt) azalan eşzamanlılıkla tekrar dene.
+    Sessizce eksik veri = backtest'te sahte fiyat boşlukları → bu yüzden eksikler raporlanır."""
+    out = {}
+    todo = list(keys)
+    for rnd in range(rounds):
+        if not todo:
+            break
+        if rnd:
+            time.sleep(5 * rnd)
+        with ThreadPoolExecutor(max(1, threads // (rnd + 1))) as ex:
+            for k_, r in zip(todo, ex.map(fn, todo)):
+                if r is not None:
+                    out[k_] = r
+        todo = [k_ for k_ in todo if k_ not in out]
+    if todo and label:
+        print(f"    [eksik] {label}: {len(todo)}/{len(keys)} parça indirilemedi")
+    MISSING[label] = (len(todo), len(keys))
+    return out
+
+
+MISSING: dict[str, tuple[int, int]] = {}
 
 
 def _now() -> datetime:
@@ -165,24 +185,34 @@ def _bi5_records(blob: bytes) -> np.ndarray | None:
 
 def _dk_day_1m(symbol: str, day: datetime) -> np.ndarray | None:
     url = f"{_DK}/{symbol}/{day.year}/{day.month - 1:02d}/{day.day:02d}/BID_candles_min_1.bi5"
-    r = _get(url, tries=3)
-    if r is None or r.status_code != 200:
-        return None
-    rec = _bi5_records(r.content)
+    r = _get(url, tries=4)
+    if r is None or r.status_code not in (200, 404):
+        return None                      # geçici hata → yeniden denenecek
+    if r.status_code == 200 and len(r.content) > 0:
+        rec = _bi5_records(r.content)
+        if rec is None:
+            return None                  # bozuk/yarım yanıt → yeniden dene
+    else:
+        rec = None
     if rec is None:
-        return None
+        return np.empty((0, 6))          # kesin boş (tatil / veri yok) → yeniden denenmez
     rec[:, 0] = rec[:, 0] + day.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     return rec
 
 
 def _dk_month_1h(symbol: str, y: int, m: int) -> np.ndarray | None:
     url = f"{_DK}/{symbol}/{y}/{m - 1:02d}/BID_candles_hour_1.bi5"
-    r = _get(url, tries=3)
-    if r is None or r.status_code != 200:
+    r = _get(url, tries=4)
+    if r is None or r.status_code not in (200, 404):
         return None
-    rec = _bi5_records(r.content)
+    if r.status_code == 200 and len(r.content) > 0:
+        rec = _bi5_records(r.content)
+        if rec is None:
+            return None                  # bozuk/yarım yanıt → yeniden dene
+    else:
+        rec = None
     if rec is None:
-        return None
+        return np.empty((0, 6))
     rec[:, 0] = rec[:, 0] + datetime(y, m, 1, tzinfo=timezone.utc).timestamp()
     return rec
 
@@ -237,10 +267,11 @@ def _dukascopy(symbol: str, base: str, start: datetime, end: datetime, price_ran
                 y, m = y + 1, 1
         # içinde bulunulan ay için saatlik dosya henüz yok → 1 dk günlükten tamamla
         cur = (end.year, end.month)
-        with ThreadPoolExecutor(6) as ex:
-            for r in ex.map(lambda ym: _dk_month_1h(symbol, *ym), [x for x in months if x != cur]):
-                if r is not None:
-                    recs.append(r)
+        got = _fetch_complete([x for x in months if x != cur], lambda ym: _dk_month_1h(symbol, *ym), threads=4, label=f"{symbol} 1h ay")
+        recs.extend(got[k] for k in sorted(got) if len(got[k]))
+        empty = sum(1 for k in got if not len(got[k]))
+        if empty:
+            print(f"    [bilgi] {symbol}: {empty} ay için kaynakta veri yok (enstrüman geçmişi daha kısa olabilir)")
         tail_start = datetime(end.year, end.month, 1, tzinfo=timezone.utc)
         tail = _dukascopy_days(symbol, max(tail_start, start), end)
         if tail is not None:
@@ -261,11 +292,8 @@ def _dukascopy_days(symbol: str, start: datetime, end: datetime) -> np.ndarray |
         if d.weekday() != 5:  # cumartesi kapalı
             days.append(d)
         d += timedelta(days=1)
-    out = []
-    with ThreadPoolExecutor(8) as ex:
-        for r in ex.map(lambda dd: _dk_day_1m(symbol, dd), days):
-            if r is not None:
-                out.append(r)
+    got = _fetch_complete(days, lambda dd: _dk_day_1m(symbol, dd), threads=6, label=f"{symbol} 1m gün")
+    out = [got[k] for k in sorted(got) if len(got[k])]
     return np.vstack(out) if out else None
 
 
@@ -380,6 +408,10 @@ def validate(asset: str, base: str, df: pd.DataFrame) -> tuple[pd.DataFrame, dic
     bad = spike & back
     rep["spikes"] = int(bad.sum())
     df = df[~bad]
+    # kapsama: beklenen aylar içinde bar sayısı medyanın %20'sinin altında olan (eksik) aylar
+    cnt = df["close"].resample("ME").size()
+    rep["gap_months"] = int((cnt < 0.2 * cnt.median()).sum()) if len(cnt) else 0
+    rep["span"] = f"{df.index[0]:%Y-%m} → {df.index[-1]:%Y-%m}" if len(df) else "—"
     # 2) bağımsız referansla ay ay oran
     ref = _yf_daily(C.ASSETS[asset]["yf"])
     if ref is None or ref.empty:

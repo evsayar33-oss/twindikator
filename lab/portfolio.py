@@ -197,6 +197,13 @@ def render(p: dict) -> list[str]:
     for i, c in enumerate(p["selected"], 1):
         L.append(f"| {i} | {c['asset']} | {c['tf']} | {sc_tr[c['scope']]} | {c['entry']} | {c['exit']} | {c['t_is']:.2f} | {rr(c['is_exp'])} ({c['is_n']}) | "
                  f"{rr(c['oos_exp'])} ({c['oos_n']}) | {pc(c['oos_wr'])} |")
+    # yıllık kararlılık: her stratejinin yıl bazında ortalama R'si (boş = o yıl işlem/veri yok)
+    yrs = sorted({y for c in p["selected"] for y in c["trades"]["time"].dt.year.unique()})
+    L += ["", "### Yıllık kararlılık — strateji başına yıl yıl ortalama R (boş hücre = o yıl işlem veya veri yok)", "",
+          "| # | " + " | ".join(str(y) for y in yrs) + " |", "|---|" + "---|" * len(yrs)]
+    for i, c in enumerate(p["selected"], 1):
+        g = c["trades"].groupby(c["trades"]["time"].dt.year)["R"].mean()
+        L.append(f"| {i} | " + " | ".join(("" if y not in g.index else f"{g[y]:+.2f}") for y in yrs) + " |")
     L += ["", f"### Portföy performansı — işlem başına sabit risk, günlük zarar limiti %{100 * C.PORT_DAILY_LIMIT:.0f}", "",
           "| Risk/işlem | Dönem | İşlem/gün | İsabet | Beklenti | Toplam getiri | Yıllık | Maks. düşüş | En uzun düşüş (gün) | Pozitif gün | Pozitif ay |",
           "|---|---|---|---|---|---|---|---|---|---|---|"]
