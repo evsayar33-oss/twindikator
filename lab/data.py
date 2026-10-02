@@ -324,3 +324,64 @@ def load(asset: str, base: str, refresh: bool = True) -> tuple[pd.DataFrame, str
     if not df.empty:
         df.to_csv(path, compression="gzip")
     return df, src
+
+
+# ═════════════════════════ FONLAMA ORANI (kripto, ücretsiz) ═════════════════════════
+def load_funding(asset: str, refresh: bool = True) -> pd.Series | None:
+    """Binance USDⓈ-M fonlama oranı geçmişi. Önce data.binance.vision arşivi, sonra fapi."""
+    a = C.ASSETS[asset]
+    if a["source"] != "binance":
+        return None
+    os.makedirs(C.DATA_DIR, exist_ok=True)
+    path = os.path.join(C.DATA_DIR, f"{asset}_funding.csv.gz")
+    if not refresh and os.path.exists(path):
+        s = pd.read_csv(path, index_col=0, parse_dates=True).iloc[:, 0]
+        s.index = pd.to_datetime(s.index, utc=True)
+        return s
+    sym, end = a["symbol"], _now()
+    start = end - timedelta(days=int(365.25 * max(C.YEARS_HOURLY, C.YEARS_INTRADAY)))
+    months, y, m = [], start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        months.append((y, m))
+        m += 1
+        if m == 13:
+            y, m = y + 1, 1
+
+    def fetch(ym):
+        yy, mm = ym
+        r = _get(f"https://data.binance.vision/data/futures/um/monthly/fundingRate/{sym}/{sym}-fundingRate-{yy}-{mm:02d}.zip", tries=2)
+        if r is None or r.status_code != 200:
+            return None
+        with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+            d = pd.read_csv(io.BytesIO(z.read(z.namelist()[0])))
+        tcol = [c for c in d.columns if "time" in c.lower()][0]
+        rcol = [c for c in d.columns if "rate" in c.lower()][-1]
+        ts = d[tcol].astype("int64")
+        ts = np.where(ts > 10**14, ts // 1000, ts)
+        return pd.Series(d[rcol].astype(float).values, index=pd.to_datetime(ts, unit="ms", utc=True))
+
+    parts = []
+    with ThreadPoolExecutor(6) as ex:
+        for s in ex.map(fetch, months):
+            if s is not None:
+                parts.append(s)
+    # son ay(lar) ve arşiv yoksa: fapi (ABD IP'lerinde engelli olabilir)
+    last = max((p.index[-1] for p in parts), default=start)
+    cur = int(last.timestamp() * 1000) + 1
+    for _ in range(200):
+        r = _get("https://fapi.binance.com/fapi/v1/fundingRate", {"symbol": sym, "startTime": cur, "limit": 1000}, tries=2)
+        if r is None or r.status_code != 200:
+            break
+        js = r.json()
+        if not js:
+            break
+        parts.append(pd.Series([float(x["fundingRate"]) for x in js], index=pd.to_datetime([x["fundingTime"] for x in js], unit="ms", utc=True)))
+        cur = js[-1]["fundingTime"] + 1
+        if len(js) < 1000:
+            break
+    if not parts:
+        return None
+    s = pd.concat(parts).sort_index()
+    s = s[~s.index.duplicated(keep="last")]
+    s.rename("funding").to_csv(path, compression="gzip")
+    return s

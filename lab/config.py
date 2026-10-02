@@ -41,16 +41,57 @@ SHOCK_LEN = 50          # robust z referans penceresi
 SHOCK_Z = 1.5           # hacim / volatilite şok eşiği (σ, robust)
 TREND_EMA = 200
 
-# ───────────────────────── İŞLEM ETİKETLEME (üçlü bariyer) ─────────────────────────
+# ───────────────────────── ÇIKIŞ YÖNTEMLERİ ─────────────────────────
+# Tüm sonuçlar R cinsinden: 1R = ilk stop mesafesi (sl_atr × ATR). Maliyet düşülür.
+#   sl_atr : ilk stop (ATR)
+#   tp     : son hedef (R) — None ise hedef yok (iz süren / zaman çıkışı)
+#   tp1    : ara hedef (R) — ulaşılınca stop GİRİŞE çekilir (break-even)
+#   part   : tp1'de kapatılan oran (0 = kısmi yok, yalnızca stop girişe)
+#   trail  : iz süren stop (ATR, en yüksek/düşük fiyattan); "be" ise yalnızca tp1 sonrası devreye girer
 ATR_LEN = 14
-TP_ATR, SL_ATR = 1.5, 1.0     # başabaş isabet = SL/(TP+SL) = %40 (maliyet hariç)
-HORIZON = 24                  # bar
-ENTRY = "next_open"           # sinyal barı kapanışında alarm → sonraki bar açılışında giriş
+HORIZON = 48                  # zaman bariyeri (bar)
+ENTRY = "next_open"           # sinyal barı kapanışı → sonraki bar açılışında giriş
+EXITS = {
+    "SABIT_1R":      {"sl_atr": 1.0, "tp": 1.0},
+    "SABIT_1.5R":    {"sl_atr": 1.0, "tp": 1.5},
+    "SABIT_2R":      {"sl_atr": 1.0, "tp": 2.0},
+    "SABIT_3R":      {"sl_atr": 1.0, "tp": 3.0},
+    "TP1>BE_2R":     {"sl_atr": 1.0, "tp": 2.0, "tp1": 1.0, "part": 0.0},
+    "TP1>BE_3R":     {"sl_atr": 1.0, "tp": 3.0, "tp1": 1.0, "part": 0.0},
+    "%50@1R>BE_2R":  {"sl_atr": 1.0, "tp": 2.0, "tp1": 1.0, "part": 0.5},
+    "%50@1R>BE_3R":  {"sl_atr": 1.0, "tp": 3.0, "tp1": 1.0, "part": 0.5},
+    "%50@1R>BE_IZ":  {"sl_atr": 1.0, "tp": None, "tp1": 1.0, "part": 0.5, "trail": 2.0, "trail_mode": "be"},
+    "GENIS_%50@1R>BE_3R": {"sl_atr": 1.5, "tp": 3.0, "tp1": 1.0, "part": 0.5},
+    "IZ_SUREN_2.5ATR": {"sl_atr": 1.0, "tp": None, "trail": 2.5, "trail_mode": "always"},
+}
+
+# ───────────────────────── STRATEJİ PARAMETRELERİ ─────────────────────────
+ER_LEN = 20                   # verimlilik oranı (rejim)
+REGIME_LEN = 300              # rejim persentil penceresi
+RANGE_PCT, TREND_PCT = 40, 60 # ER persentili: altı yatay, üstü trend
+DONCHIAN = (20, 55)
+MA_PAIRS = ((9, 21), (20, 50), (50, 200))
+TSMOM = (24, 72)
+BB_LEN, BB_K, KC_K, SQZ_MIN = 20, 2.0, 1.5, 6
+VWAP_K = (2.0, 2.5)
+ORB_MIN = (15, 30)
+ORB_WINDOW_MIN = 120
+SEASON_FWD, SEASON_T = 6, 2.5
+GSR_LEN, GSR_Z = 300, (1.5, 2.0)
+LEADLAG_Z = 2.0
+FUNDING_LEN, FUNDING_Z = 90, (1.5, 2.0)
+PARTNER = {"BTC": "ETH", "ETH": "BTC", "NQ": "SPX", "SPX": "NQ", "XAU": "XAG", "XAG": "XAU"}
+
+# ───────────────────────── META-MODEL ─────────────────────────
+META_ON = True
+META_EXIT = "%50@1R>BE_2R"    # meta-modelin öğrendiği etiket bu çıkışla üretilir
+META_FOLDS = 4                # IS içinde genişleyen pencere CV (katlama dışı tahmin)
+META_KEEP = 0.35              # olasılığı en yüksek %35'lik aday dilimi işlenir
 
 # ───────────────────────── İSTATİSTİK ─────────────────────────
 IS_FRACTION = 0.70            # ilk %70 seçim (in-sample), son %30 doğrulama (out-of-sample)
-MIN_TRADES_IS = 50
-MIN_TRADES_OOS = 20
+MIN_TRADES_IS = 40
+MIN_TRADES_OOS = 15
 WILSON_Z = 1.96
 N_BLOCKS = 4                  # kararlılık: OOS dahil tüm dönem 4 bloğa bölünür
 
