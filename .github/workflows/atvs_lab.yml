@@ -1,1 +1,54 @@
-e
+name: ATVS Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      assets:
+        description: "Varlıklar (virgülle): XAU,XAG,BTC,ETH,NQ,SPX"
+        default: "XAU,XAG,BTC,ETH,NQ,SPX"
+  schedule:
+    - cron: "17 3 * * 0"   # her pazar 03:17 UTC — yeni veriyle yeniden test (kendini güncelleyen seçim)
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atvs-lab
+  cancel-in-progress: false
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Veri önbelleği
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: atvs-data-${{ github.run_id }}
+          restore-keys: atvs-data-
+
+      - name: Laboratuvarı çalıştır
+        run: python run_lab.py --assets "${{ github.event.inputs.assets || 'XAU,XAG,BTC,ETH,NQ,SPX' }}"
+
+      - name: Raporu depoya yaz
+        run: |
+          git config user.name "atvs-lab-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reports
+          git commit -m "ATVS Lab raporu $(date -u +%Y-%m-%d)" || echo "değişiklik yok"
+          git push
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: atvs-lab-rapor
+          path: reports
