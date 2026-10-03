@@ -3,12 +3,14 @@
 # ATVS — Oracle Cloud sunucu otomatik kurulum betiği (cloud-init)
 # Oracle'da sunucu oluştururken "Show advanced options" → "Management" →
 # "Paste cloud-init script" kutusuna bu dosyanın TAMAMINI yapıştır.
-# Yalnızca aşağıdaki 4 satırı (BURAYA yazan yerleri) doldur.
+# Aşağıdaki 4 satırı (BURAYA yazan yerleri) doldur. 5. satır (GH_TOKEN) isteğe bağlı:
+# doldurursan bot verisi Streamlit paneline gider (deploy/PANEL.md).
 # ═══════════════════════════════════════════════════════════════════════════
 REPO="https://github.com/evsayar33-oss/twindikator.git"   # repo private ise: https://KULLANICI:TOKEN@github.com/evsayar33-oss/twindikator.git
 BITGET_KEY="BURAYA_API_KEY"
 BITGET_SECRET="BURAYA_SECRET_KEY"
 BITGET_PASS="BURAYA_PASSPHRASE"
+GH_TOKEN=""          # isteğe bağlı: yalnızca bu repoya "Contents: Read and write" yetkili GitHub token'ı (panel için)
 
 # ───────── aşağısına dokunma ─────────
 U=ubuntu; H=/home/$U
@@ -23,6 +25,7 @@ SYM_XAU=XAU/USDT:USDT
 SYM_ETH=ETH/USDT:USDT
 ATVS_ONLY=XAU
 ATVS_DRY=0
+GH_TOKEN=$GH_TOKEN
 ENV
 chmod 600 $H/atvs.env; chown $U:$U $H/atvs.env
 
@@ -42,6 +45,7 @@ git pull -q || true
 set -a; . /home/ubuntu/atvs.env; set +a
 .venv/bin/pip install -q -r requirements.txt >/dev/null 2>&1 || true
 flock -n /tmp/atvs.lock .venv/bin/python trader.py "$@" >> /home/ubuntu/trader.log 2>&1
+bash /home/ubuntu/atvs/deploy/veri_gonder.sh >> /home/ubuntu/trader.log 2>&1 || echo "(panel verisi gönderilemedi)" >> /home/ubuntu/trader.log
 tail -c 200000 /home/ubuntu/trader.log > /home/ubuntu/trader.log.tmp && mv /home/ubuntu/trader.log.tmp /home/ubuntu/trader.log
 RUN
 chmod +x $H/run.sh; chown $U:$U $H/run.sh
