@@ -40,6 +40,8 @@ def _matrix(f: dict, idx: pd.DatetimeIndex, fam_l: dict, fam_s: dict, side: int,
 
 
 def add_meta(book: Book, f: dict, idx: pd.DatetimeIndex, R_by_side: dict, valid: np.ndarray, split: int) -> str | None:
+    """split: IS/OOS sınırı (araştırma). Canlı modda split = len(idx) verilir: tüm etiketli geçmişle eğitilir,
+    etiketi henüz oluşmamış (son HORIZON bar) adaylar için tahmin üretilir. Mantık her iki modda aynıdır."""
     try:
         from sklearn.ensemble import HistGradientBoostingClassifier
     except ImportError:
@@ -47,17 +49,21 @@ def add_meta(book: Book, f: dict, idx: pd.DatetimeIndex, R_by_side: dict, valid:
     n = len(idx)
     fam_l, fam_s = {}, {}
     for _, (fam, L, S) in book.items.items():
+        if fam == "META":
+            continue
         fam_l[fam] = fam_l.get(fam, np.zeros(n, bool)) | L
         fam_s[fam] = fam_s.get(fam, np.zeros(n, bool)) | S
-    rows_l = np.flatnonzero(np.logical_or.reduce(list(fam_l.values())) & valid)
-    rows_s = np.flatnonzero(np.logical_or.reduce(list(fam_s.values())) & valid)
+    if not fam_l:
+        return "aday aile yok"
+    rows_l = np.flatnonzero(np.logical_or.reduce(list(fam_l.values())))
+    rows_s = np.flatnonzero(np.logical_or.reduce(list(fam_s.values())))
     X = np.vstack([_matrix(f, idx, fam_l, fam_s, 1, rows_l), _matrix(f, idx, fam_l, fam_s, -1, rows_s)])
-    y = np.r_[R_by_side[1][rows_l], R_by_side[-1][rows_s]] > 0
+    Rv = np.r_[R_by_side[1][rows_l], R_by_side[-1][rows_s]]
+    lab = np.isfinite(Rv) & np.r_[valid[rows_l], valid[rows_s]]
+    y = Rv > 0
     bar = np.r_[rows_l, rows_s]
     side = np.r_[np.ones(len(rows_l)), -np.ones(len(rows_s))]
-    ok = np.isfinite(np.r_[R_by_side[1][rows_l], R_by_side[-1][rows_s]])
-    X, y, bar, side = X[ok], y[ok], bar[ok], side[ok]
-    is_ev = bar < split
+    is_ev = lab & (bar < split)
     if is_ev.sum() < 400:
         return "yetersiz aday"
 
@@ -65,14 +71,14 @@ def add_meta(book: Book, f: dict, idx: pd.DatetimeIndex, R_by_side: dict, valid:
         return HistGradientBoostingClassifier(max_depth=3, learning_rate=0.05, max_iter=200,
                                               l2_regularization=1.0, min_samples_leaf=50, random_state=7)
 
-    # IS: genişleyen pencere, katlama dışı tahmin
+    # IS: genişleyen pencere, katlama dışı tahmin (yalnızca etiketli olaylar)
     is_bars = np.sort(np.unique(bar[is_ev]))
     edges = np.quantile(is_bars, np.linspace(0, 1, C.META_FOLDS + 1)).astype(int)
     p = np.full(len(bar), np.nan)
     for k in range(1, C.META_FOLDS):
         lo, hi = edges[k], edges[k + 1] if k + 1 < C.META_FOLDS else split
-        tr = bar < lo - C.HORIZON
-        te = (bar >= lo) & (bar < hi)
+        tr = lab & (bar < lo - C.HORIZON)
+        te = lab & (bar >= lo) & (bar < hi)
         if tr.sum() < 300 or te.sum() == 0 or y[tr].all() or not y[tr].any():
             continue
         m = model().fit(X[tr], y[tr])
@@ -81,14 +87,16 @@ def add_meta(book: Book, f: dict, idx: pd.DatetimeIndex, R_by_side: dict, valid:
     if len(oof) < 100:
         return "yetersiz katlama dışı tahmin"
     thr = np.quantile(oof, 1 - C.META_KEEP)
-    tr = bar < split - C.HORIZON
+    tr = lab & (bar < split - C.HORIZON)
+    if y[tr].all() or not y[tr].any():
+        return "tek sınıf"
     m = model().fit(X[tr], y[tr])
-    te = bar >= split
+    te = (bar >= split) | ~lab            # OOS + etiketi olmayan (canlıda: en güncel) adaylar
     if te.any():
         p[te] = m.predict_proba(X[te])[:, 1]
     take = np.isfinite(p) & (p >= thr)
     L, S = np.zeros(n, bool), np.zeros(n, bool)
     L[bar[take & (side == 1)]] = True
     S[bar[take & (side == -1)]] = True
-    book.add("META", f"gradient boosting · tüm adaylar · üst %{int(C.META_KEEP * 100)}", L, S, 1)
+    book.add("META", f"gradient boosting · tüm adaylar · üst %{int(round(C.META_KEEP * 100))}", L, S, 1)
     return None

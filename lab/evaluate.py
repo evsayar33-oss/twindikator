@@ -45,19 +45,35 @@ def stats(R: np.ndarray, months: float, base_wr: float, base_exp: float = np.nan
     }
 
 
+def build_context(df: pd.DataFrame, cost_bps: float, tf_min: int, partner: pd.Series | None, pname: str,
+                  funding: pd.Series | None, split: int, families: tuple | None = None, all_exits: bool = True) -> dict:
+    """Göstergeler + giriş defteri (+ META) + çıkış simülasyonları. Araştırma, finalist testi ve canlı motor
+    AYNI fonksiyonu kullanır → üç aşamada sinyaller birebir aynıdır."""
+    n = len(df)
+    is_mask = np.zeros(n, bool)
+    is_mask[:min(split, n)] = True
+    f = FE.compute(df)
+    want_meta = C.META_ON and (families is None or "META" in families)
+    book = ST.build_all(df, f, tf_min, is_mask, partner, pname, funding, families=None if want_meta else families)
+    sims = X.simulate_all(df, f["atr"], cost_bps) if all_exits else {}
+    meta_sim = sims.get(C.META_EXIT) if sims else None
+    meta_msg = None
+    if want_meta:
+        if meta_sim is None:
+            meta_sim = X.simulate(df, f["atr"], cost_bps, C.EXITS[C.META_EXIT])
+        meta_msg = M.add_meta(book, f, df.index, meta_sim, meta_sim["valid"], split)
+    if families is not None:
+        book.items = {k: v for k, v in book.items.items() if v[0] in families}
+    return {"f": f, "book": book, "sims": sims, "meta": meta_msg, "split": split, "is_mask": is_mask}
+
+
 def evaluate(df: pd.DataFrame, cost_bps: float, tf_min: int, partner: pd.Series | None, pname: str,
              funding: pd.Series | None) -> tuple[pd.DataFrame, dict]:
     n = len(df)
     split = int(n * C.IS_FRACTION)
-    is_mask = np.zeros(n, bool)
-    is_mask[:split] = True
-    f = FE.compute(df)
-    book = ST.build_all(df, f, tf_min, is_mask, partner, pname, funding)
-    sims = X.simulate_all(df, f["atr"], cost_bps)
+    ctx = build_context(df, cost_bps, tf_min, partner, pname, funding, split)
+    f, book, sims, meta_msg, is_mask = ctx["f"], ctx["book"], ctx["sims"], ctx["meta"], ctx["is_mask"]
     valid = sims[next(iter(sims))]["valid"]
-    meta_msg = None
-    if C.META_ON:
-        meta_msg = M.add_meta(book, f, df.index, sims[C.META_EXIT], valid, split)
 
     span = {"is": (df.index[0], df.index[split - 1]), "oos": (df.index[split], df.index[-1])}
     months = {k: max((b - a).days / 30.44, 0.1) for k, (a, b) in span.items()}

@@ -195,9 +195,50 @@ def _dk_day_1m(symbol: str, day: datetime) -> np.ndarray | None:
     else:
         rec = None
     if rec is None:
+        # Bugünün (ve henüz yayımlanmamışsa dünün) dakika dosyası yok → tamamlanmış saatlerin tick dosyalarından üret
+        if day.date() >= (_now() - timedelta(days=2)).date():
+            tk = _dk_ticks_day(symbol, day)
+            if tk is not None and len(tk):
+                return tk
         return np.empty((0, 6))          # kesin boş (tatil / veri yok) → yeniden denenmez
     rec[:, 0] = rec[:, 0] + day.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     return rec
+
+
+def _dk_tick_hour(symbol: str, hour_start: datetime) -> np.ndarray | None:
+    """Saatlik tick dosyası → 1 dk mumlar [t, açılış, kapanış, düşük, yüksek, hacim] (BID; mum dosyalarıyla aynı sütun düzeni)."""
+    url = f"{_DK}/{symbol}/{hour_start.year}/{hour_start.month - 1:02d}/{hour_start.day:02d}/{hour_start.hour:02d}h_ticks.bi5"
+    r = _get(url, tries=4)
+    if r is None or r.status_code not in (200, 404):
+        return None
+    if r.status_code == 404 or len(r.content) == 0:
+        return np.empty((0, 6))
+    try:
+        raw = lzma.decompress(r.content)
+    except lzma.LZMAError:
+        return None
+    n = len(raw) // 20
+    if n == 0:
+        return np.empty((0, 6))
+    a = np.array(struct.unpack(">" + "IIIff" * n, raw[: n * 20]), dtype=float).reshape(n, 5)
+    t = hour_start.timestamp() + a[:, 0] / 1000.0
+    minute = (t // 60) * 60
+    df = pd.DataFrame({"m": minute, "bid": a[:, 2], "v": a[:, 3] + a[:, 4]})
+    g = df.groupby("m", sort=True)
+    out = np.column_stack([g["bid"].first().index.to_numpy(), g["bid"].first().to_numpy(), g["bid"].last().to_numpy(),
+                           g["bid"].min().to_numpy(), g["bid"].max().to_numpy(), g["v"].sum().to_numpy()])
+    return out
+
+
+def _dk_ticks_day(symbol: str, day: datetime) -> np.ndarray | None:
+    now = _now()
+    d0 = day.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+    hours = [d0 + timedelta(hours=h) for h in range(24) if d0 + timedelta(hours=h + 1) <= now]
+    if not hours:
+        return None
+    got = _fetch_complete(hours, lambda hs: _dk_tick_hour(symbol, hs), threads=4, rounds=3, label=f"{symbol} tick {day:%Y-%m-%d}")
+    parts = [got[k] for k in sorted(got) if len(got[k])]
+    return np.vstack(parts) if parts else None
 
 
 def _dk_month_1h(symbol: str, y: int, m: int) -> np.ndarray | None:

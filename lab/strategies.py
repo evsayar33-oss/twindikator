@@ -143,7 +143,7 @@ def fam_regime(book: Book, f: dict):
 
 def fam_rsi2(book: Book, f: dict):
     r2, c, ema = _a(f["rsi2"]), _a(f["c"]), _a(f["ema200"])
-    for lo in (5, 10):
+    for lo in C.RSI2_LO:
         L, S = cross_dn(r2, float(lo)), cross_up(r2, float(100 - lo))
         book.add("RSI2", f"RSI(2) {lo}/{100 - lo} · filtresiz", L, S, C.ARM_BARS)
         book.add("RSI2", f"RSI(2) {lo}/{100 - lo} · EMA200 trend", L & (c > ema), S & (c < ema), C.ARM_BARS)
@@ -298,20 +298,38 @@ def fam_funding(book: Book, f: dict, funding: pd.Series | None):
 
 
 def build_all(df: pd.DataFrame, f: dict, tf_min: int, is_mask: np.ndarray, partner: pd.Series | None, pname: str,
-              funding: pd.Series | None) -> Book:
+              funding: pd.Series | None, families: tuple | None = None) -> Book:
+    """families: yalnızca bu aileleri üret (None = FOCUS_FAMILIES / tümü). META ayrıca meta.add_meta ile eklenir."""
+    want = set(families) if families else (set(C.FOCUS_FAMILIES) if C.FOCUS_FAMILIES else None)
+
+    def on(fam):
+        return want is None or fam in want
+
     book = Book()
-    fam_osc(book, f)   # REJIM bu ailenin olaylarını kullanır; OSC odakta değilse sonradan çıkarılır
-    fam_regime(book, f)
-    fam_rsi2(book, f)
-    fam_donchian(book, f)
-    fam_ma(book, f)
-    fam_squeeze(book, f)
-    fam_vwap(book, f, df, tf_min)
-    fam_orb(book, f, df, tf_min)
-    fam_imom(book, f, df, tf_min)
-    fam_season(book, f, df, tf_min, is_mask)
-    fam_pair(book, f, partner, pname)
-    fam_funding(book, f, funding)
-    if C.FOCUS_FAMILIES:
-        book.items = {k: v for k, v in book.items.items() if v[0] in C.FOCUS_FAMILIES}
+    if on("OSC") or on("REJIM") or on("META"):
+        fam_osc(book, f)          # REJIM bu ailenin olaylarını kullanır
+    if on("REJIM"):
+        fam_regime(book, f)
+    if on("RSI2"):
+        fam_rsi2(book, f)
+    if on("DONCH"):
+        fam_donchian(book, f)
+    if on("MA"):
+        fam_ma(book, f)
+    if on("SQZ"):
+        fam_squeeze(book, f)
+    if on("VWAP"):
+        fam_vwap(book, f, df, tf_min)
+    if on("ORB"):
+        fam_orb(book, f, df, tf_min)
+    if on("IMOM"):
+        fam_imom(book, f, df, tf_min)
+    if on("SEZON"):
+        fam_season(book, f, df, tf_min, is_mask)
+    if on("PAIR") or on("LEADLAG"):
+        fam_pair(book, f, partner, pname)
+    if on("FUNDING"):
+        fam_funding(book, f, funding)
+    if want is not None:
+        book.items = {k: v for k, v in book.items.items() if v[0] in want}
     return book

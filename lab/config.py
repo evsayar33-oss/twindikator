@@ -26,14 +26,14 @@ TIMEFRAMES = {
 }
 YEARS_INTRADAY = float(os.getenv("ATVS_YEARS_INTRADAY", "2"))   # 5m tabanı geçmişi
 YEARS_HOURLY   = float(os.getenv("ATVS_YEARS_HOURLY", "15"))     # kaynakta ne kadar varsa (BTC/ETH ~2017'den)
-CACHE_TAG = "v3"              # önbellek sürümü: değişince tüm veri temiz baştan indirilir
+CACHE_TAG = "v4"              # önbellek sürümü: değişince tüm veri temiz baştan indirilir (v4: eksik-parça yeniden deneme ile temiz indirme)
 VALIDATE_TOL = 0.06           # bağımsız kaynakla aylık oran sapma toleransı (CFD/futures baz farkı dahil)
 
 # ODAK MODU: kısa ZD'ler maliyetten dolayı elendi → yalnızca bu ZD ve aileler test edilir
 # (daha az test = daha güçlü istatistik; boş bırakılırsa hepsi)
 FOCUS_TFS = tuple(x for x in os.getenv("ATVS_TFS", "1h,4h").split(",") if x)
 FOCUS_FAMILIES = tuple(x for x in os.getenv("ATVS_FAMILIES", "MA,DONCH,SQZ,RSI2,REJIM,OSC,META").split(",") if x)
-SUSPECT_EXP, SUSPECT_WR = 1.5, 0.85   # OOS'ta bunları aşan sonuçlar 'veri şüphesi' sayılır ve seçimden çıkarılır     # 1h tabanı geçmişi
+SUSPECT_EXP, SUSPECT_WR = 1.5, 0.85   # bunları aşan sonuçlar 'veri şüphesi' sayılır ve seçimden çıkarılır
 
 # ───────────────────────── GÖSTERGELER (Pine ile birebir) ─────────────────────────
 RSI_LEN = 14
@@ -78,6 +78,7 @@ ER_LEN = 20                   # verimlilik oranı (rejim)
 REGIME_LEN = 300              # rejim persentil penceresi
 RANGE_PCT, TREND_PCT = 40, 60 # ER persentili: altı yatay, üstü trend
 DONCHIAN = (20, 55)
+RSI2_LO = (5, 10)             # RSI(2) alt eşikleri (üst = 100 − alt)
 MA_PAIRS = ((9, 21), (20, 50), (50, 200))
 TSMOM = (24, 72)
 BB_LEN, BB_K, KC_K, SQZ_MIN = 20, 2.0, 1.5, 6
@@ -96,12 +97,42 @@ META_EXIT = "%50@1R>BE_2R"    # meta-modelin öğrendiği etiket bu çıkışla 
 META_FOLDS = 4                # IS içinde genişleyen pencere CV (katlama dışı tahmin)
 META_KEEP = 0.35              # olasılığı en yüksek %35'lik aday dilimi işlenir
 
-# ───────────────────────── PORTFÖY & İFLAS RİSKİ ─────────────────────────
-PORT_MIN_T = 1.5              # IS beklentisinin t-istatistiği alt sınırı
-PORT_PER_ASSET = 3            # varlık başına en fazla strateji
-PORT_MAX = 15                 # toplam en fazla strateji
-PORT_RISKS = (0.0025, 0.005, 0.01)   # işlem başına kasa riski: %0.25 / %0.5 / %1
-PORT_DAILY_LIMIT = 0.03       # günlük zarar limiti (kasanın %3'ü)
+# ───────────────────────── FİNALİST SEÇİMİ (v3) ─────────────────────────
+# Adaylar: (a) aşağıdaki tohum listesi (v2.4 analizinden), (b) her varlık × ZD için IS'te en sağlam ilk K ayar.
+# Her aday aşağıdaki KAPILARIN HEPSİNİ geçerse finalist olur. Tüm testler çakışmasız (strateji başına tek pozisyon).
+FINAL_SEEDS = [
+    {"asset": "XAU", "tf": "4h", "entry": "DONCH · Donchian 20 · EMA200 trend", "exit": "TP1>BE_3R", "scope": "long"},
+    {"asset": "SPX", "tf": "4h", "entry": "RSI2 · RSI(2) 10/90 · EMA200 trend", "exit": "SABIT_3R", "scope": "long"},
+    {"asset": "ETH", "tf": "4h", "entry": "DONCH · Donchian 20 · hacim şoku", "exit": "IZ_SUREN_2.5ATR", "scope": "both"},
+    {"asset": "NQ", "tf": "1h", "entry": "META · gradient boosting · tüm adaylar · üst %35", "exit": "IZ_SUREN_2.5ATR", "scope": "long"},
+    {"asset": "XAU", "tf": "1h", "entry": "SQZ · BB-Keltner sıkışma çözülmesi · filtresiz", "exit": "IZ_SUREN_2.5ATR", "scope": "both"},
+    {"asset": "NQ", "tf": "1h", "entry": "REJIM · anahtar (ikisi) · Stoch · filtresiz", "exit": "IZ_SUREN_2.5ATR", "scope": "long"},
+]
+FINAL_TOPK = 4                # varlık × ZD başına IS t-istatistiğine göre ek aday
+FINAL_MIN_T_IS = 2.0          # ek adaylar için IS t alt sınırı
+GATE_OOS_N = 30               # OOS'ta en az işlem (çakışmasız)
+GATE_OOS_P = 0.10             # K1: Benjamini–Hochberg yanlış keşif oranı (tüm adaylar birlikte)
+GATE_FULL_N = 80              # tüm dönemde en az işlem (çakışmasız)
+GATE_COST_MULT = 2.0          # maliyet bu katına çıkınca da beklenti > 0 olmalı
+GATE_NEIGHBOR_POS = 0.70      # komşu parametre setlerinin en az bu oranı pozitif olmalı
+GATE_YEARS_POS = 0.60         # (≥5 işlemli) yılların en az bu oranı pozitif olmalı
+FINAL_PER_ASSET = 2           # varlık başına en fazla finalist
+FINAL_MAX = 8                 # toplam en fazla finalist
+
+# ───────────────────────── PORTFÖY (olay tabanlı, v3) ─────────────────────────
+CLUSTERS = {"XAU": "METAL", "XAG": "METAL", "BTC": "KRIPTO", "ETH": "KRIPTO", "NQ": "ABD_ENDEKS", "SPX": "ABD_ENDEKS"}
+PORT_MAX_OPEN = 4             # aynı anda en fazla açık pozisyon
+PORT_CLUSTER_MAX = 1          # aynı kümede (birlikte hareket eden varlıklar) aynı anda en fazla pozisyon
+PORT_RISKS = (0.0025, 0.005, 0.0075, 0.01, 0.015, 0.02)
+PORT_DAILY_LIMIT = 0.03       # gün içinde gerçekleşen zarar bu orana ulaşınca o gün yeni işlem yok
+PORT_TARGET_MDD = 0.15        # Monte Carlo'da %95 olasılıkla aşılmaması istenen maksimum düşüş
+PORT_MC_PATHS = 3000
+
+# ───────────────────────── CANLI KÂĞIT İŞLEM ─────────────────────────
+LIVE_STATE_DIR = os.getenv("ATVS_STATE", "state")
+LIVE_CATCHUP_BARS = 12        # kaçırılan çalıştırmalar için geriye dönük sinyal tarama (bar)
+LIVE_DEFAULT_RISK = 0.005     # finalist raporu öneri üretemezse kullanılacak işlem başına risk
+LIVE_BARS = 5000              # META dışı stratejilerde canlı hesap için son N mum (göstergelerin ısınması için fazlasıyla yeterli)
 
 # ───────────────────────── İSTATİSTİK ─────────────────────────
 IS_FRACTION = 0.70            # ilk %70 seçim (in-sample), son %30 doğrulama (out-of-sample)
