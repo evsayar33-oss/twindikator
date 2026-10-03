@@ -1,4 +1,20 @@
-# ATVS Lab v3
+# ATVS Lab v3.1
+
+**v3.1 değişiklikleri**
+
+- **Giriş filtreleri.** DONCH, MA, SQZ, RSI2 ve REJIM ailelerinin her girişine aşağıdaki filtreler **tek tek** eklenerek yeni girişler üretilir:
+  - günlük trend (önceki günün kapanışı günlük EMA50'ye göre)
+  - ADX ≥ 20
+  - kırılımdan önce sıkışma
+  - güçlü mum (gövde ≥ %50)
+  - Londra/New York seansı
+  - hacim şoku
+
+  Böylece giriş sayısı yaklaşık 280'den 520'ye çıkar.
+- **Yeni çıkışlar.** Sabit 2.5R ve 4R hedefler, 0.5R'de stopu girişe çekme (hedef 3R), 1.5R'de stopu girişe çekme (hedef 4R), 1R'de %50 kapatıp kalanı 4R'ye taşıma ve **başarısız kırılımda erken çıkış**: ilk 3 mum içinde kapanış sinyal mumunun dibinin altına dönerse işlemden çıkılır. Toplam çıkış sayısı 17.
+- Finalist adayları: her varlık × zaman dilimi için IS'te en sağlam ilk 6 ayar. Çoklu test düzeltmesi bütün adaylara birlikte uygulanır.
+- Saatlik kâğıt işlem iş akışı varsayılan olarak **kapalı**; işlemler OKX ve TradingView üzerinden yürütülüyor. İstenirse `atvs_live.yml` dosyasından açılabilir.
+
 
 XAU · XAG · BTC · ETH · NQ · SPX için araştırma, finalist seçimi ve canlı kâğıt işlem sistemi. Tamamı ücretsiz veriyle GitHub Actions'ta çalışır, sinyaller Telegram'a gelir.
 
