@@ -6,8 +6,9 @@ on:
       force:
         description: "Yeni mum beklemeden zorla çalıştır (1)"
         default: "0"
-  schedule:
-    - cron: "7 * * * *"    # her saat :07 — mum kapanışından sonra (yeni mum yoksa motor hemen çıkar)
+  # Saatlik kâğıt işlem kapalı (OKX + TradingView kullanılıyor). Açmak için aşağıdaki iki satırın başındaki # işaretini kaldır.
+  # schedule:
+  #   - cron: "7 * * * *"
 
 permissions:
   contents: write
