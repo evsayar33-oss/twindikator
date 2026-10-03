@@ -1,0 +1,70 @@
+//@version=6
+strategy("XAU 4h Donchian — ATVS F1", shorttitle = "ATVS-F1", overlay = true, pyramiding = 0,
+     default_qty_type = strategy.percent_of_equity, default_qty_value = 100,
+     commission_type = strategy.commission.percent, commission_value = 0.01,
+     process_orders_on_close = false)
+
+// ATVS laboratuvarı finalisti F1_XAU_4h_DONCH (15 yıl, tüm kapılar geçti).
+// Kural: 4h mum, önceki 20 mumun en yükseğinin üstünde kapanır (ilk kırılım) + kapanış EMA200 üstünde → LONG.
+// Giriş: sonraki mum açılışı · Stop: 1×ATR · +1R'de stop girişe · Hedef +3R · 48 mum sonra kapat.
+// Grafik: XAUUSDT (veya XAUUSD) · 4 saat.
+
+// ───────── ayarlar
+int   donN    = input.int(20, "Donchian uzunluk", minval = 2)
+int   emaN    = input.int(200, "Trend EMA", minval = 2)
+float slAtr   = input.float(1.0, "Stop (ATR)", step = 0.05)
+float tp1R    = input.float(1.0, "TP1 → stop girişe (R)", step = 0.25)
+float tpR     = input.float(3.0, "Hedef (R)", step = 0.5)
+int   horizon = input.int(48, "Zaman çıkışı (mum)", minval = 2)
+bool  noWeekend = input.bool(true, "Hafta sonu sinyal üretme (laboratuvar verisi gibi)")
+string msgEnter = input.string("", "OKX alarm mesajı: GİRİŞ (OKX sinyal botundan kopyala)")
+string msgExit  = input.string("", "OKX alarm mesajı: ÇIKIŞ (OKX sinyal botundan kopyala)")
+
+// ───────── göstergeler (laboratuvarla aynı tanım)
+float trv    = ta.tr(true)
+float atrRaw = ta.rma(trv, 14)
+float atrMed = ta.median(atrRaw, 500)
+float atr    = math.max(atrRaw, 0.5 * nz(atrMed, atrRaw))
+float ema    = ta.ema(close, emaN)
+float hh     = ta.highest(high, donN)[1]
+
+bool brk  = close > hh
+bool first = brk and not brk[1]
+bool wkOk = not noWeekend or (dayofweek != dayofweek.saturday and dayofweek != dayofweek.sunday)
+bool raw  = first and close > ema and wkOk
+bool prevSig = ta.highest(raw[1] ? 1 : 0, 12) > 0            // 12 mum içinde tekrar eden sinyali yok say (laboratuvarla aynı)
+bool sig  = raw and not prevSig and barstate.isconfirmed
+
+// ───────── pozisyon yönetimi
+var float sigAtr = na
+var int   sigBar = na
+var float stopPx = na
+var bool  beOn   = false
+
+if strategy.position_size == 0 and sig
+    sigAtr := atr
+    sigBar := bar_index
+    beOn   := false
+    stopPx := na
+    float riskT = slAtr * atr / syminfo.mintick
+    strategy.entry("L", strategy.long, alert_message = msgEnter)
+    strategy.exit("X", "L", loss = riskT, profit = tpR * riskT, alert_message = msgExit)
+
+if strategy.position_size > 0
+    float e    = strategy.position_avg_price
+    float risk = slAtr * sigAtr
+    if na(stopPx)
+        stopPx := e - risk
+    if not beOn and high >= e + tp1R * risk
+        beOn   := true
+        stopPx := math.max(stopPx, e)                         // sonraki mumdan itibaren stop girişte
+    strategy.exit("X", "L", stop = stopPx, limit = e + tpR * risk, alert_message = msgExit)
+    if bar_index - sigBar >= horizon
+        strategy.close("L", comment = "zaman", immediately = true, alert_message = msgExit)
+
+// ───────── çizim
+plot(ema, "EMA200", color.new(color.orange, 0))
+plot(hh, "Donchian üst", color.new(color.teal, 40), style = plot.style_stepline)
+plot(strategy.position_size > 0 ? stopPx : na, "Stop", color.new(color.red, 0), style = plot.style_linebr)
+plot(strategy.position_size > 0 ? strategy.position_avg_price + tpR * slAtr * sigAtr : na, "Hedef", color.new(color.green, 0), style = plot.style_linebr)
+plotshape(sig and strategy.position_size == 0, "LONG", shape.triangleup, location.belowbar, color.new(color.green, 0), size = size.small)
