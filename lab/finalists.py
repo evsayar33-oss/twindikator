@@ -253,12 +253,22 @@ def rules_text(asset: str, tf: str, entry: str, exit_name: str, scope: str) -> s
         g = f"{body}. Osilatörler (RSI14 / Stoch14 / WaveTrend) dinamik ya da sabit eşik bölgesine girip çıktığında sinyal; REJIM ailesinde verimlilik oranına göre yatay/trend filtresi uygulanır."
     else:
         g = body
+    if " + " in entry:
+        extra = {"günlük trend": f"günlük grafikte önceki gün kapanışı EMA{C.HTF_EMA} üstünde (SHORT: altında)",
+                 f"ADX≥{C.ADX_MIN}": f"ADX(14) ≥ {C.ADX_MIN}", "önceden sıkışma": "son 10 mumda Bollinger genişliği alt %25'te",
+                 "güçlü mum": f"sinyal mumunun gövdesi aralığının ≥%{int(C.BODY_MIN * 100)}'i ve yönle aynı",
+                 "seans": f"sinyal mumu UTC {C.SESSION_UTC[0]:02d}:00–{C.SESSION_UTC[1]:02d}:00 arasında başlar", "hacim": "son 2 mumda hacim şoku"}
+        for k_, v_ in extra.items():
+            if entry.endswith(" + " + k_):
+                g += f" Ek filtre: {v_}."
     cfg = C.EXITS[exit_name]
     e = [f"Giriş: sinyal mumunun kapanışından sonraki mumun açılışında.", f"Stop: giriş ∓ {cfg['sl_atr']} × ATR(14) (sinyal mumundaki ATR)."]
     if cfg.get("tp1") is not None:
         e.append(f"+{cfg['tp1']}R'de " + (f"pozisyonun %{int(cfg['part'] * 100)}'i kapatılır ve " if cfg.get("part") else "") + "stop girişe çekilir.")
     if cfg.get("tp") is not None:
         e.append(f"Hedef: +{cfg['tp']}R.")
+    if cfg.get("fail") is not None:
+        e.append(f"İlk {cfg['fail']} mum içinde kapanış sinyal mumunun dibinin altına (SHORT: tepesinin üstüne) dönerse kapanıştan çık.")
     if cfg.get("trail") is not None:
         e.append(f"İz süren stop: ulaşılan en uç fiyattan {cfg['trail']} × ATR" + (" (TP1 sonrası)." if cfg.get("trail_mode") == "be" else " (girişten itibaren)."))
     e.append(f"{C.HORIZON} mum sonra hâlâ açıksa kapanış fiyatından kapatılır.")

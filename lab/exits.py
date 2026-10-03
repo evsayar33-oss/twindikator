@@ -61,6 +61,7 @@ def simulate(df: pd.DataFrame, atr: pd.Series, cost_bps: float, cfg: dict, H: in
     sl_atr = cfg["sl_atr"]
     tp, tp1, part = cfg.get("tp"), cfg.get("tp1"), cfg.get("part", 0.0)
     trail, tmode = cfg.get("trail"), cfg.get("trail_mode", "always")
+    fail = cfg.get("fail")
     for side in (1, -1):
         e = side * entry0
         hi_s, lo_s, cl_s = (h, l, c) if side == 1 else (-l, -h, -c)
@@ -93,6 +94,14 @@ def simulate(df: pd.DataFrame, atr: pd.Series, cost_bps: float, cfg: dict, H: in
                 R[ht] += size[ht] * tp
                 kx[ht] = k
                 alive &= ~ht
+            if fail is not None and k <= fail:
+                # erken çıkış: ilk `fail` mum içinde kapanış sinyal mumunun dibinin (SHORT: tepesinin) ötesine dönerse kapanıştan çık
+                cc = _shift(cl_s, k)
+                with np.errstate(invalid="ignore"):
+                    hf = alive & ~be & (cc < lo_s)
+                R[hf] += size[hf] * (cc[hf] - e[hf]) / risk[hf]
+                kx[hf] = k
+                alive &= ~hf
             if trail is not None:
                 act = alive & (be if tmode == "be" else True)
                 with np.errstate(invalid="ignore"):
@@ -128,6 +137,8 @@ def simulate_one(o, h, l, c, a_sig: float, i: int, side: int, cfg: dict, cost_bp
     risk = cfg["sl_atr"] * a_sig
     tp, tp1, part = cfg.get("tp"), cfg.get("tp1"), cfg.get("part", 0.0)
     trail, tmode = cfg.get("trail"), cfg.get("trail_mode", "always")
+    fail = cfg.get("fail")
+    sig_lo = l[i] if side == 1 else -h[i]
     e = side * entry
     stop = e - risk
     ext = e
@@ -161,6 +172,10 @@ def simulate_one(o, h, l, c, a_sig: float, i: int, side: int, cfg: dict, cost_bp
             res["events"].append(("tp1", k))
         if tp is not None and hh >= e + tp * risk:
             return fin(R + size * tp, k, "hedef")
+        if fail is not None and k <= fail and not be:
+            cc = c[j] if side == 1 else -c[j]
+            if cc < sig_lo:
+                return fin(R + size * (cc - e) / risk, k, "başarısız kırılım")
         if trail is not None:
             ext = max(ext, hh)
             if be or tmode != "be":

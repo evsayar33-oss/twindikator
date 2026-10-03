@@ -297,6 +297,34 @@ def fam_funding(book: Book, f: dict, funding: pd.Series | None):
         book.add("FUNDING", f"fonlama uç değeri ±{t}σ (kalabalığa karşı)", cross_dn(zz, -t), cross_up(zz, t), 12)
 
 
+def fam_filters(book: Book, f: dict, df: pd.DataFrame):
+    """Mevcut girişlere tek tek filtre ekleyerek daha seçici yeni girişler üretir (aile adı korunur)."""
+    c, o, h, l = _a(f["c"]), _a(f["o"]), _a(f["h"]), _a(f["l"])
+    rng_ = np.where(h - l > 0, h - l, np.nan)
+    with np.errstate(invalid="ignore"):
+        body = (c - o) / rng_
+        htf = _a(f["htf"])
+        adx_ok = _a(f["adx"]) >= C.ADX_MIN
+        sqz = rollmax(_a(f["bbw_pct"].shift(1)) < 0.25, 10)
+        hr = np.asarray(df.index.hour)
+        sess = (hr >= C.SESSION_UTC[0]) & (hr < C.SESSION_UTC[1])
+        volS = rollmax(_a(f["volZ"]) >= C.SHOCK_Z, 2) if f["has_vol"] else np.ones(len(c), bool)
+    flt = {
+        "günlük trend": (htf > 0, htf < 0),
+        f"ADX≥{C.ADX_MIN}": (adx_ok, adx_ok),
+        "önceden sıkışma": (sqz, sqz),
+        "güçlü mum": (body >= C.BODY_MIN, body <= -C.BODY_MIN),
+        "seans": (sess, sess),
+        "hacim": (volS, volS),
+    }
+    base = [(k, v) for k, v in book.items.items() if v[0] in C.FILTER_BASE_FAMILIES]
+    for name, (fam, L, S) in base:
+        for fn, (fl, fs) in flt.items():
+            if fn in name:
+                continue
+            book.items[f"{name} + {fn}"] = (fam, L & np.nan_to_num(fl).astype(bool), S & np.nan_to_num(fs).astype(bool))
+
+
 def build_all(df: pd.DataFrame, f: dict, tf_min: int, is_mask: np.ndarray, partner: pd.Series | None, pname: str,
               funding: pd.Series | None, families: tuple | None = None) -> Book:
     """families: yalnızca bu aileleri üret (None = FOCUS_FAMILIES / tümü). META ayrıca meta.add_meta ile eklenir."""
@@ -330,6 +358,7 @@ def build_all(df: pd.DataFrame, f: dict, tf_min: int, is_mask: np.ndarray, partn
         fam_pair(book, f, partner, pname)
     if on("FUNDING"):
         fam_funding(book, f, funding)
+    fam_filters(book, f, df)
     if want is not None:
         book.items = {k: v for k, v in book.items.items() if v[0] in want}
     return book

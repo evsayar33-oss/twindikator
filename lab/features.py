@@ -105,6 +105,10 @@ def compute(df: pd.DataFrame) -> dict:
     kc_atr = rma(tr, C.BB_LEN)
     f["kc_up"], f["kc_dn"] = ema(c, C.BB_LEN) + C.KC_K * kc_atr, ema(c, C.BB_LEN) - C.KC_K * kc_atr
     f["bbw_pct"] = ((f["bb_up"] - f["bb_dn"]) / basis).rolling(200, min_periods=100).rank(pct=True)
+    # üst zaman dilimi trendi: önceki TAMAMLANMIŞ günün kapanışı günlük EMA'nın üstünde mi (ileriye bakış yok)
+    dclose = c.resample("1D").last().dropna()
+    dtrend = np.sign(dclose - ema(dclose, C.HTF_EMA)).shift(1)
+    f["htf"] = pd.Series(dtrend.reindex(c.index.floor("D")).to_numpy(), index=c.index)
     f["ret"] = np.log(c).diff()
     f["ret_z"] = f["ret"] / f["ret"].rolling(100, min_periods=50).std().shift(1)
     return f

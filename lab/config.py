@@ -71,6 +71,13 @@ EXITS = {
     "%50@1R>BE_IZ":  {"sl_atr": 1.0, "tp": None, "tp1": 1.0, "part": 0.5, "trail": 2.0, "trail_mode": "be"},
     "GENIS_%50@1R>BE_3R": {"sl_atr": 1.5, "tp": 3.0, "tp1": 1.0, "part": 0.5},
     "IZ_SUREN_2.5ATR": {"sl_atr": 1.0, "tp": None, "trail": 2.5, "trail_mode": "always"},
+    # v3.1 — daha yüksek RR / farklı BE noktaları / başarısız kırılımda erken çıkış
+    "SABIT_2.5R":    {"sl_atr": 1.0, "tp": 2.5},
+    "SABIT_4R":      {"sl_atr": 1.0, "tp": 4.0},
+    "TP0.5>BE_3R":   {"sl_atr": 1.0, "tp": 3.0, "tp1": 0.5, "part": 0.0},
+    "TP1.5>BE_4R":   {"sl_atr": 1.0, "tp": 4.0, "tp1": 1.5, "part": 0.0},
+    "%50@1R>BE_4R":  {"sl_atr": 1.0, "tp": 4.0, "tp1": 1.0, "part": 0.5},
+    "TP1>BE_3R_ERKEN": {"sl_atr": 1.0, "tp": 3.0, "tp1": 1.0, "part": 0.0, "fail": 3},
 }
 
 # ───────────────────────── STRATEJİ PARAMETRELERİ ─────────────────────────
@@ -91,6 +98,13 @@ LEADLAG_Z = 2.0
 FUNDING_LEN, FUNDING_Z = 90, (1.5, 2.0)
 PARTNER = {"BTC": "ETH", "ETH": "BTC", "NQ": "SPX", "SPX": "NQ", "XAU": "XAG", "XAG": "XAU"}
 
+# v3.1 — giriş filtresi katmanı: aşağıdaki ailelerin her girişine filtreler TEK TEK eklenerek yeni girişler üretilir
+FILTER_BASE_FAMILIES = ("DONCH", "MA", "SQZ", "RSI2", "REJIM")
+HTF_EMA = 50                  # günlük grafik trend EMA'sı (bir önceki tamamlanmış gün)
+ADX_MIN = 20                  # trend gücü filtresi
+SESSION_UTC = (7, 20)         # Londra + New York seansı (UTC saat, bar başlangıcı)
+BODY_MIN = 0.5                # güçlü mum: gövde / aralık oranı
+
 # ───────────────────────── META-MODEL ─────────────────────────
 META_ON = True
 META_EXIT = "%50@1R>BE_2R"    # meta-modelin öğrendiği etiket bu çıkışla üretilir
@@ -108,7 +122,7 @@ FINAL_SEEDS = [
     {"asset": "XAU", "tf": "1h", "entry": "SQZ · BB-Keltner sıkışma çözülmesi · filtresiz", "exit": "IZ_SUREN_2.5ATR", "scope": "both"},
     {"asset": "NQ", "tf": "1h", "entry": "REJIM · anahtar (ikisi) · Stoch · filtresiz", "exit": "IZ_SUREN_2.5ATR", "scope": "long"},
 ]
-FINAL_TOPK = 4                # varlık × ZD başına IS t-istatistiğine göre ek aday
+FINAL_TOPK = 6                # varlık × ZD başına IS t-istatistiğine göre ek aday
 FINAL_MIN_T_IS = 2.0          # ek adaylar için IS t alt sınırı
 GATE_OOS_N = 30               # OOS'ta en az işlem (çakışmasız)
 GATE_OOS_P = 0.10             # K1: Benjamini–Hochberg yanlış keşif oranı (tüm adaylar birlikte)
