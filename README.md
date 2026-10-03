@@ -1,109 +1,114 @@
-# ATVS Lab v2.4
+# ATVS Lab v3
 
-**v2.4 değişiklikleri**
+XAU · XAG · BTC · ETH · NQ · SPX için araştırma, finalist seçimi ve canlı kâğıt işlem sistemi. Tamamı ücretsiz veriyle GitHub Actions'ta çalışır, sinyaller Telegram'a gelir.
 
-- **Eksik veri düzeltmesi.** Dukascopy kısıtlama yaptığında (429/5xx hatası ya da bozuk yanıt) eksik kalan aylar ve günler artık sessizce atlanmıyor; daha düşük eşzamanlılıkla 4 tura kadar yeniden deneniyor. Kaynakta gerçekten verisi olmayan aylar ayrıca raporlanıyor.
-- **Boşluk koruması.** Giriş ile zaman bariyeri arasında 4 günden uzun bir veri boşluğu varsa o işlem sayılmıyor. Sahte büyük R değerlerinin asıl kaynağı bu boşluklardı.
-- **Doğrulama tablosu.** Tabloya dönem ve **eksik ay** sütunları eklendi.
-- **Yıllık kararlılık tablosu.** Portföydeki her stratejinin ortalama R'si yıl yıl gösteriliyor.
+```
+Araştırma (ayda bir)  →  Finalist kapıları  →  Portföy + risk seçimi  →  Canlı kâğıt işlem (saatlik)  →  Telegram
+```
 
+## Kurulum (bir kez)
 
-**v2.3 değişiklikleri**
+1. **Dosyaları yükle.** Bu klasördeki her şeyi mevcut `atvs_lab` reposuna üzerine yaz. Eski `lab/engine.py` artık kullanılmıyor; silebilirsin.
+2. **Telegram secret'larını ekle.** Repo → Settings → Secrets and variables → Actions:
+   - `TELEGRAM_TOKEN`: bot token'ı (`TELEGRAM_BOT_TOKEN` adı da kabul edilir)
+   - `TELEGRAM_CHAT_ID`
+3. **Araştırmayı başlat.** Actions → **ATVS Lab (araştırma + finalist)** → Run workflow. Veri baştan indirildiği için ilk çalıştırma 1–3 saat sürebilir. Bitince Telegram'a finalist özeti gelir.
+4. **Canlı motor otomatik başlar.** **ATVS Canlı** iş akışı her saat :07'de çalışır. Finalist yoksa ya da yeni mum kapanmamışsa saniyeler içinde çıkar.
 
-- **Veri doğrulama.** Her seri yfinance günlük kapanışıyla ay ay karşılaştırılır. Ölçek hatası olan aylar düzeltilir. Düzeltilemeyen aylar ve tek barlık sahte sıçramalar atılır. Raporun başında bir doğrulama tablosu yer alır.
-- **Temiz önbellek.** Önbellek sürümü `v3` oldu. Tüm veri baştan ve temiz indirilir. 1h tabanı için kaynakta ne kadar geçmiş varsa o kullanılır (en fazla 15 yıl).
-- **Odak modu.** Yalnızca 1h ve 4h test edilir. Aileler: MA, DONCH, SQZ, RSI2, REJIM, OSC, META. Test sayısı azaldığı için istatistikler daha güçlüdür. Kapsamı değiştirmek için ortam değişkenlerini kullan: `ATVS_TFS=30m,1h,4h`, `ATVS_FAMILIES=` (boş bırakılırsa tüm aileler).
-- **Alfa.** Her sonuç, aynı çıkışla rastgele girişin beklentisiyle karşılaştırılır. Böylece boğa piyasasında yalnızca LONG tarafta durarak "kazanan" stratejiler ayıklanır.
-- **🚩 Veri şüphesi.** OOS beklentisi 1.5R'nin veya isabeti %85'in üstündeki sonuçlar işaretlenir. Bu sonuçlar seçime ve portföye alınmaz.
+> **Actions dakikaları:** Repo **public** ise sınırsızdır. Private ise ayda 2.000 dakika ücretsizdir. Saatlik canlı iş akışı her çalıştırmada 1–3 dakika kullanır; private repoda bu sınırı aşabilir. Böyle bir durumda `atvs_live.yml` içindeki cron satırını `7 */4 * * *` yap (4 saatte bir).
 
-XAU · XAG · BTC · ETH · NQ · SPX varlıklarını **5m / 15m / 30m / 1h / 4h** zaman dilimlerinde test eder. Kapsam: **13 strateji ailesi** (yaklaşık 280 giriş) × **11 çıkış yöntemi** × 3 yön (iki yön / LONG / SHORT). Sonuçta her varlık için **OOS'ta en yüksek beklentiyi (R) veren** ayarı raporlar. Tamamen ücretsiz veri kullanır.
+## 1) Araştırma
 
-## Strateji aileleri
+- **Kapsam:** 1h ve 4h zaman dilimleri. Aileler: MA, DONCH, SQZ, RSI2, REJIM, OSC, META. Her biri 11 çıkış yöntemi ve 3 yön ayarıyla test edilir.
+- **Veri:** BTC/ETH için Binance arşivi, diğerleri için Dukascopy. Geçmiş, kaynakta ne kadar varsa o kadar; en fazla 15 yıl.
+- **Doğrulama:** Her seri yfinance günlük kapanışıyla ay ay karşılaştırılır. Ölçek hatası olan aylar düzeltilir, düzeltilemeyenler ve tek barlık sıçramalar atılır. İndirilemeyen parçalar 4 tura kadar yeniden denenir. Giriş ile çıkış arasında veri boşluğu olan işlemler sayılmaz.
+- **Örneklem:** İlk %70 IS (seçim), son %30 OOS (doğrulama).
 
-| Aile | İçerik |
+## 2) Finalist kapıları
+
+Tüm testler **çakışmasız** yapılır: her strateji aynı anda tek pozisyon taşır. Bir adayın finalist olması için altı kapının hepsini geçmesi gerekir:
+
+| Kapı | Koşul |
 |---|---|
-| OSC | RSI / Stoch / WaveTrend dönüşü: 7 alt küme × sabit veya dinamik eşik × 16 filtre (hacim şoku, volatilite şoku, EMA200, onay mumu) |
-| REJIM | Rejim anahtarı: yatay piyasada dönüş, trendde geri çekilme ya da ikisinin birleşimi (verimlilik oranı persentili) |
-| RSI2 | Connors tipi RSI(2) aşırılığı, trend filtreli ya da filtresiz |
-| DONCH | Donchian 20/55 kırılımı: filtresiz, hacim şoku, trend ya da sıkışma sonrası |
-| MA | EMA 9/21, 20/50, 50/200 kesişimleri ve zaman serisi momentumu |
-| SQZ | Bollinger–Keltner sıkışmasının çözülmesi |
-| VWAP | Seans VWAP'ından sapma sonrası dönüş ve VWAP kırılımı (≤1h) |
-| ORB | New York 09:30 ve Londra 08:00 açılış aralığı kırılımı (≤30m) |
-| IMOM | Gün içi momentum: sabah getirisinin yönünde 15:30 NY işlemi (≤30m) |
-| SEZON | Saat etkisi. Yalnızca IS döneminde öğrenilir |
-| PAIR | Eş varlığa göre göreli değer dönüşü (XAU/XAG, BTC/ETH, NQ/SPX) |
-| LEADLAG | Eş varlıktaki ani hareketi takip |
-| FUNDING | BTC/ETH fonlama oranı uç değerleri (kalabalığa karşı işlem) |
-| META | Gradient boosting: bütün ailelerin adaylarından hangisinin çalışacağını öğrenir. IS sonuçları katlama dışı tahminden gelir |
+| K1 | OOS'ta en az 30 işlem, beklenti > 0, alfa > 0 (rastgele girişe göre fark). **Benjamini–Hochberg** düzeltmesi: çok sayıda aday birlikte test edildiği için şans eseri geçenler elenir. |
+| K2 | Tüm dönemde en az 80 işlem ve beklenti > 0 |
+| K3 | Maliyet 2 katına çıktığında da beklenti > 0 |
+| K4 | Komşu parametre setlerinin en az %70'i pozitif (ATR, zaman bariyeri, stop/hedef, aileye özel uzunluk ve eşikler) |
+| K5 | En az 5 işlem açılan yılların en az %60'ı pozitif |
+| K6 | Veri şüphesi yok |
 
-## Çıkış yöntemleri
+- **Seçim:** Kapıları geçenler tüm dönem t-istatistiğine göre sıralanır. Varlık başına en fazla 2, toplamda en fazla 8 finalist alınır.
+- **Sahte veri kontrolü:** Saf rastgele yürüyüşte finalist çıkmadığı öz-testle doğrulanır.
 
-1R = ilk stop mesafesi.
+## 3) Portföy
 
-| Ad | Kural |
+Portföy simülasyonu olay tabanlıdır; işlemler gerçek giriş ve çıkış zamanlarıyla işlenir. Kurallar:
+
+- Aynı anda en fazla 4 pozisyon açık olabilir.
+- Birlikte hareket eden varlıklar aynı kümede sayılır ve her kümede aynı anda en fazla 1 pozisyon açılır: **ABD endeksleri** (NQ+SPX), **metaller** (XAU+XAG), **kripto** (BTC+ETH).
+- Günlük zarar limiti %3'tür.
+- Risk, giriş anındaki kasanın yüzdesi olarak hesaplanır ve sonuç çıkış anında kasaya yazılır.
+
+**Risk seçimi:** %0.25 ile %2 arasındaki risk seviyeleri Monte Carlo ile test edilir (3.000 farklı 1 yıllık yol). Maksimum düşüşün %95 olasılıkla **%15'i aşmadığı en yüksek risk** önerilir. Önerilen risk Telegram mesajlarına yazılır.
+
+## 4) Canlı kâğıt işlem motoru (`live.py`)
+
+- **Aynı kod:** Veri, doğrulama ve sinyal kodu araştırmayla birebir aynıdır. Öz-test, saatlik çalıştırmaların tekrar oynatılmasıyla canlı motorun ürettiği işlemlerin backtest işlemleriyle **aynı** olduğunu doğrular. Bu kontrol gecikmeli veri ve atlanan çalıştırmalar için de yapılır.
+- **Giriş:** Sinyal mumundan sonraki mumun açılışı.
+- **Eksik mum koruması:** Üst zaman diliminin mumu, içindeki tüm saatlik veriler gelmeden işlenmez.
+- **Geriye dönük tarama:** Kaçırılan çalıştırmalar için son 12 mum taranır.
+
+**Telegram mesajları:**
+
+| Mesaj | Ne zaman gelir |
 |---|---|
-| SABIT_1R / 1.5R / 2R / 3R | Stop 1 ATR, sabit hedef |
-| TP1>BE_2R / 3R | 1R'de stop girişe çekilir, hedef 2R veya 3R |
-| %50@1R>BE_2R / 3R | 1R'de pozisyonun yarısı kapanır, stop girişe çekilir, kalan 2R veya 3R'ye gider |
-| %50@1R>BE_IZ | 1R'de yarısı kapanır, stop girişe çekilir, kalan 2 ATR iz süren stop ile yönetilir |
-| GENIS_%50@1R>BE_3R | Aynı mantık, ilk stop 1.5 ATR |
-| IZ_SUREN_2.5ATR | Hedef yok, 2.5 ATR iz süren stop |
+| 🟢/🔴 YENİ SİNYAL | Sinyal oluştuğunda; stop, TP1, hedef ve önerilen pozisyon büyüklüğüyle |
+| 📍 GİRİŞ GERÇEKLEŞTİ | Giriş fiyatı belli olunca; kesin seviyelerle |
+| 🔒 TP1 | TP1'e ulaşıldığında (gerekiyorsa kısmi kapama) — stopu girişe çek |
+| ↗️ İz süren stop | Stop en az 0.5 ATR ilerlediğinde |
+| ✅/❌ KAPANDI | İşlem kapandığında; sonuç R cinsinden, maliyet dahil |
+| 📊 Haftalık karne | Pazartesi; canlı sonuçlar backtest beklentisiyle karşılaştırılır |
+| ⚠️ Hata | Bir hata oluştuğunda (aynı hata tekrar tekrar gönderilmez) |
 
-Tüm yöntemler için ortak kurallar:
-- Zaman bariyeri 48 bar.
-- Aynı barda hem hedef hem stop görülürse stop sayılır (muhafazakâr).
-- Stopu girişe çekme kuralı bir sonraki bardan itibaren geçerli olur.
-- Maliyet dahildir.
+**Durum dosyaları:** `state/positions.json`, `state/ledger.csv` (tüm kâğıt işlemler), `state/last_run.txt`.
 
-## Neden güvenilir
+## 5) TradingView
 
-- **IS/OOS ayrımı:** Seçim verinin ilk %70'inde, beklentinin %95 alt sınırına göre yapılır. Karar, seçimde hiç görülmemiş son %30'luk dilimde verilir.
-- **✅ Kanıtlı koşulları:** OOS'ta pozitif beklenti, en az 30 işlem ve **Bonferroni düzeltmeli** p < 0.05/k. Burada k, o tablodaki test sayısıdır.
-- **Sahte veri testi:** Rastgele sentetik veride 6 varlığın hiçbirinde ✅ çıkmadı. Yani sistem şans eseri kazananları eliyor.
-- **Sağlamlık satırı:** IS'te en iyi 20 ayarın kaçının OOS'ta pozitif kaldığını gösterir.
-- **Ek kontroller:** Kararlılık blokları ve maksimum düşüş (R) raporlanır.
+`pine/ATVS_Finalist.pine` bir Pine **strategy** betiğidir: TradingView'ın strateji test aracında çapraz kontrol ve görsel takip için kullanılır.
 
-## Çalıştırma
+- Ailesini, parametrelerini ve çıkış ayarlarını RAPOR.md'deki **Kurallar** bölümüne göre gir.
+- **META** ailesi Pine'da yoktur; onu yalnızca Telegram motoru izler.
+- TradingView'ın mum içi fiyat sırası varsayımı laboratuvarınkinden farklı olabilir; küçük sonuç farkları normaldir.
 
-1. Repoya bu dosyaları yükle. Eski `lab/engine.py` artık kullanılmıyor; silebilirsin.
-2. **Actions → ATVS Lab → Run workflow** ile başlat.
-3. Sonucu iki yerden okuyabilirsin: çalıştırma sayfasındaki **Summary** sekmesi ya da depodaki `reports/RAPOR.md`.
-
-Veri önbellekte duruyor; sonraki çalıştırmalar yalnızca yeni veriyi indirir. Geçmiş süresi `lab/config.py` içindeki `YEARS_INTRADAY` (varsayılan 2) ve `YEARS_HOURLY` (varsayılan 6) ile ayarlanır.
-
-## Portföy ve iflas riski (v2.2)
-
-Laboratuvar, IS döneminde en sağlam görünen stratejileri tek bir portföyde birleştirir. Seçim kuralları:
-
-- IS t-istatistiği en az 1.5 olmalı.
-- Varlık başına en fazla 3 strateji alınır; aynı varlıkta her aileden yalnızca bir tane.
-- Toplamda en fazla 15 strateji.
-
-Portföy, her işlemde kasanın %0.25, %0.5 ve %1'i riske atılarak ayrı ayrı simüle edilir. Günlük zarar limiti %3'tür: bu limite ulaşılınca o gün yeni işlem açılmaz. Her strateji yalnızca kendi OOS döneminde işlem yapar.
-
-Rapor şunları gösterir:
-
-- günde ortalama işlem sayısı
-- isabet oranı
-- toplam ve yıllık getiri
-- maksimum düşüş ve en uzun düşüş süresi
-- pozitif gün ve pozitif ay oranı
-
-Monte Carlo analizi, 2.000 farklı 1 yıllık senaryo üretir ve her risk seviyesi için şu olasılıkları hesaplar:
-
-- yılı zararla kapama
-- kasanın %20, %30 veya %50 düşmesi
-
-Bu analiz için 1h tabanının geçmişi 10 yıla uzatıldı. Önbellekteki eski veri otomatik olarak tamamlanır.
-
-## TradingView
-
-`pine/ATVS_Lab.pine` şimdilik yalnızca OSC ailesini kapsar. Diğer ailelerden kazanan çıkarsa, o stratejinin Pine sürümü laboratuvarla birebir aynı mantıkla ayrıca yazılacak.
+`pine/ATVS_Lab.pine` dosyası eski OSC göstergesidir.
 
 ## Çıktılar
 
-- `reports/RAPOR.md`: özet, varlık × zaman dilimi ısı tablosu, aile sıralaması, çıkış yöntemi karşılaştırması, sağlamlık, kararlılık ve ilk 15 ayar
-- `reports/en_iyi.json`: varlık başına seçilen ayar
-- `reports/portfoy_islemler.csv.gz`, `reports/portfoy_kasa_oos.csv`: portföy işlemleri ve OOS kasa eğrisi
-- `reports/secili_sonuclar.csv.gz`: her varlık × zaman dilimi için IS'te ilk 150 sonuç ve her ailenin en iyisi
+**reports/**
+- `RAPOR.md`: doğrulama, finalistler, portföy ve araştırma ayrıntıları
+- `finalists.json`
+- `finalist_islemler.csv.gz`
+- `portfoy_kasa.csv`
+- `secili_sonuclar.csv.gz`
+- `calisma_logu.txt`
+
+**state/** (canlı motor kullanır)
+- `finalists.json`
+- `positions.json`
+- `ledger.csv`
+
+## Öz-test
+
+`python selftest.py` internetsiz çalışır ve şunları test eder:
+
+- çıkış simülatörlerinin birebir aynı sonuç vermesi
+- veri ayrıştırıcıları ve doğrulama
+- boşluk koruması
+- trend içeren sentetik veride uçtan uca çalışma
+- **rastgele veride finalist çıkmaması**
+- canlı motorla backtest'in eşitliği (normal, gecikmeli ve atlanan çalıştırmalar)
+- META'nın canlı modda çalışması
+
+Araştırma iş akışı önce bu testleri çalıştırır. Bir test başarısız olursa araştırma durur ve Telegram'a uyarı gönderilir.
+
+> Kâğıt işlem / ileri test sistemidir; yatırım tavsiyesi değildir. Gerçek paraya geçmeden önce en az 1–3 ay canlı kâğıt işlem sonuçlarını backtest beklentisiyle karşılaştır (haftalık karne).

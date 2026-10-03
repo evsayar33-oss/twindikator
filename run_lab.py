@@ -21,6 +21,8 @@ from lab import config as C
 from lab import data as D
 from lab import evaluate as EV
 from lab import portfolio as PF
+from lab import finalists as FN
+import traceback
 
 SC_TR = {"both": "iki yön", "long": "LONG", "short": "SHORT"}
 TF_MIN = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}
@@ -60,6 +62,10 @@ def synthetic(base: str, years: float, seed: int) -> pd.DataFrame:
 # ───────────────────────── ANA AKIŞ ─────────────────────────
 def run(assets: list[str], refresh: bool, synth: bool):
     os.makedirs(C.OUT_DIR, exist_ok=True)
+    if not synth and os.path.isdir(C.DATA_DIR):         # eski sürüm önbellek dosyalarını temizle
+        for fn in os.listdir(C.DATA_DIR):
+            if fn.endswith(".csv.gz") and "_funding" not in fn and not fn.startswith(C.CACHE_TAG + "_"):
+                os.remove(os.path.join(C.DATA_DIR, fn))
     need = list(dict.fromkeys(assets + [C.PARTNER[a] for a in assets if a in C.PARTNER]))
     tfs_run = [tf for tf in C.TIMEFRAMES if not C.FOCUS_TFS or tf in C.FOCUS_TFS]
     need_bases = sorted({C.TIMEFRAMES[tf]["base"] for tf in tfs_run})
@@ -79,7 +85,7 @@ def run(assets: list[str], refresh: bool, synth: bool):
         if funding[a] is not None:
             print(f"{a} fonlama: {len(funding[a]):,} kayıt")
 
-    summary, keep_rows, cands = {}, [], []
+    summary, keep_rows, ctxs, research = {}, [], {}, {}
     for a in assets:
         t0 = time.time()
         print(f"\n═══ {a} ═══")
@@ -100,11 +106,16 @@ def run(assets: list[str], refresh: bool, synth: bool):
                 pb = bases[(pa, spec["base"])]
                 partner = (pb if spec["rule"] == native else D.resample(pb, spec["rule"]))["close"]
             t1 = time.time()
-            res, aux = EV.evaluate(df, C.ASSETS[a]["cost_bps"], TF_MIN[tf], partner, pa or "", funding.get(a))
+            try:
+                res, aux = EV.evaluate(df, C.ASSETS[a]["cost_bps"], TF_MIN[tf], partner, pa or "", funding.get(a))
+            except Exception:
+                print(f"  {tf}: HATA — atlandı\n{traceback.format_exc()}")
+                continue
             res.insert(0, "tf", tf)
             res.insert(0, "asset", a)
             aux["bars"] = len(df)
-            cands += PF.collect(res, aux, a, tf)
+            ctxs[(a, tf)] = FN.DataCtx(a, tf, df, partner, pa or "", funding.get(a))
+            research[(a, tf)] = res
             tf_res[tf], tf_aux[tf] = res, aux
             b = EV.pick(res, "both")
             print(f"  {tf}: {len(df):,} bar · {aux['n_entries']} giriş × {len(C.EXITS)} çıkış · "
@@ -112,7 +123,12 @@ def run(assets: list[str], refresh: bool, synth: bool):
             top = res[res["both_is_n"] >= C.MIN_TRADES_IS].nlargest(150, "both_is_lb")
             fam_best = res.loc[res.groupby("family")["both_is_lb"].idxmax().dropna().astype(int)]
             keep_rows += [top, fam_best]
-        summary[a] = analyse(a, tf_res, tf_aux, {b: srcs.get((a, b)) for b in ("5m", "1h")})
+        try:
+            summary[a] = analyse(a, tf_res, tf_aux, {b: srcs.get((a, b)) for b in ("5m", "1h")})
+        except Exception:
+            print(f"  analiz HATA\n{traceback.format_exc()}")
+            summary[a] = {"srcs": {}, "tf": {}}
+        del tf_aux
         print(f"  süre {time.time() - t0:.0f}s")
 
     if keep_rows:
@@ -120,13 +136,32 @@ def run(assets: list[str], refresh: bool, synth: bool):
             os.path.join(C.OUT_DIR, "secili_sonuclar.csv.gz"), index=False, compression="gzip")
     with open(os.path.join(C.OUT_DIR, "en_iyi.json"), "w", encoding="utf-8") as fh:
         json.dump({a: s.get("json", {}) for a, s in summary.items()}, fh, ensure_ascii=False, indent=2, default=str)
-    port = PF.run(cands)
-    if port.get("selected"):
-        pd.concat([c["trades"].assign(strateji=f"{c['asset']} {c['tf']} {c['entry']} | {c['exit']} | {c['scope']}") for c in port["selected"]]
-                  ).sort_values("time").to_csv(os.path.join(C.OUT_DIR, "portfoy_islemler.csv.gz"), index=False, compression="gzip")
-        pd.DataFrame({f"risk_%{100 * lv['risk']:.2g}": lv["equity"] for lv in port["levels"]}).to_csv(os.path.join(C.OUT_DIR, "portfoy_kasa_oos.csv"))
-        print(f"Portföy: {len(port['selected'])} strateji")
-    md = render(summary, synth, port, vreps, tfs_run)
+    # ── v3: finalistler → portföy → canlı motor ayarları
+    try:
+        fin = FN.run(ctxs, research)
+    except Exception:
+        print(f"FİNALİST HATA\n{traceback.format_exc()}")
+        fin = {"evals": [], "finalists": []}
+    try:
+        port = PF.run(fin["finalists"])
+    except Exception:
+        print(f"PORTFÖY HATA\n{traceback.format_exc()}")
+        port = {"ok": False, "msg": "hata"}
+    risk = port["rec"]["risk"] if port.get("ok") and port.get("rec") else None
+    fj = FN.to_json(fin["finalists"], risk)
+    meta_info = {"olusturma": datetime.now(timezone.utc).isoformat(), "sentetik": synth, "onerilen_risk": risk,
+                 "portfoy_max_acik": C.PORT_MAX_OPEN, "kume_max": C.PORT_CLUSTER_MAX, "finalistler": fj}
+    for path in (os.path.join(C.OUT_DIR, "finalists.json"),) + (() if synth else (os.path.join(C.LIVE_STATE_DIR, "finalists.json"),)):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(meta_info, fh, ensure_ascii=False, indent=2, default=str)
+    if fin["finalists"]:
+        pd.concat([e["trades"].assign(id=e["id"]) for e in fin["finalists"]]).to_csv(
+            os.path.join(C.OUT_DIR, "finalist_islemler.csv.gz"), index=False, compression="gzip")
+    if port.get("ok"):
+        pd.DataFrame({f"risk_%{100 * lv['risk']:.2g}": lv["equity"] for lv in port["levels"]}).to_csv(os.path.join(C.OUT_DIR, "portfoy_kasa.csv"))
+    print(f"Finalist: {len(fin['finalists'])} · önerilen risk: {risk}")
+    md = render(summary, synth, port, vreps, tfs_run, fin)
     with open(os.path.join(C.OUT_DIR, "RAPOR.md"), "w", encoding="utf-8") as fh:
         fh.write(md)
     if os.getenv("GITHUB_STEP_SUMMARY"):
@@ -205,9 +240,10 @@ def analyse(a, tf_res, tf_aux, srcs) -> dict:
 
 
 # ───────────────────────── RAPOR ─────────────────────────
-def render(summary: dict, synth: bool, port: dict | None = None, vreps: list | None = None, tfs_run: list | None = None) -> str:
+def render(summary: dict, synth: bool, port: dict | None = None, vreps: list | None = None, tfs_run: list | None = None,
+           fin: dict | None = None) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    L = [f"# ATVS Lab v2 Raporu — {now}", ""]
+    L = [f"# ATVS Lab v3 Raporu — {now}", ""]
     if synth:
         L += ["> ⚠️ **SENTETİK VERİ** — yalnızca boru hattı testi; sonuçlar anlamsızdır.", ""]
     L += [
@@ -229,11 +265,15 @@ def render(summary: dict, synth: bool, port: dict | None = None, vreps: list | N
         *[f"| {v['asset']} | {v['base']} | {v.get('span', '—')} | {v['ref']} | {v['status']} | {v.get('months', '—')} | {v.get('gap_months', '—')} | {v['fixed_months']} | {v['dropped_months']} | {v['spikes']} | "
           f"{pct(v['median_dev'])} |" for v in (vreps or [])],
         "",
-        "## Özet — varlık başına en iyi (IS'te seçilen, OOS'ta ölçülen)",
-        "",
-        "| Varlık | ZD | Yön | Giriş | Çıkış | IS beklenti (n) | **OOS beklenti (n)** | OOS alfa | OOS isabet | OOS PF | İşlem/ay | OOS maks. düşüş | p | Karar |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
+    if fin is not None:
+        L += FN.render(fin)
+    if port is not None:
+        L += PF.render(port)
+    L += ["---", "# Araştırma ayrıntıları (tüm aileler × çıkışlar; IS'te seçilen, OOS'ta ölçülen; çakışmalı işlemlerle tarama)", "",
+          "## Özet — varlık başına en iyi (IS'te seçilen, OOS'ta ölçülen)", "",
+          "| Varlık | ZD | Yön | Giriş | Çıkış | IS beklenti (n) | **OOS beklenti (n)** | OOS alfa | OOS isabet | OOS PF | İşlem/ay | OOS maks. düşüş | p | Karar |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     k_sum = sum(1 for s in summary.values() if "row" in s)
     for a, s in summary.items():
         if "row" not in s:
@@ -241,12 +281,11 @@ def render(summary: dict, synth: bool, port: dict | None = None, vreps: list | N
             continue
         r, sc = s["row"], s["sc"]
         s["verdict"] = EV.verdict(r, sc, k_sum)
-        s["json"]["karar"] = s["verdict"]
+        if "json" in s:
+            s["json"]["karar"] = s["verdict"]
         L.append(f"| **{a}** | {s['tf_sel']} | {SC_TR[sc]} | {r['entry']} | {r['exit']} | {rr(r[f'{sc}_is_exp'])} ({int(r[f'{sc}_is_n'])}) | "
                  f"**{rr(r[f'{sc}_oos_exp'])}** ({int(r[f'{sc}_oos_n'])}) | {rr(r[f'{sc}_oos_alpha'])} | {pct(r[f'{sc}_oos_wr'])} | {f2(r[f'{sc}_oos_pf'])} | "
                  f"{r[f'{sc}_oos_pm']:.1f} | {f2(s['dd'][1])}R | {pv(r[f'{sc}_oos_p'])} | {s['verdict']} |")
-    if port is not None:
-        L += [""] + PF.render(port)
     # ısı tablosu
     tfs = tfs_run or list(C.TIMEFRAMES)
     L += ["", "## Varlık × zaman dilimi — her hücrede IS'te seçilen en iyinin OOS beklentisi", "",
