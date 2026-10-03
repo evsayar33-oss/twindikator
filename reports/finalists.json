@@ -1,7 +1,7 @@
 {
-  "olusturma": "2026-10-03T06:05:08.242997+00:00",
+  "olusturma": "2026-10-03T07:30:29.217486+00:00",
   "sentetik": false,
-  "onerilen_risk": 0.015,
+  "onerilen_risk": 0.01,
   "portfoy_max_acik": 4,
   "kume_max": 1,
   "finalistler": [
@@ -10,27 +10,55 @@
       "asset": "XAU",
       "tf": "4h",
       "family": "DONCH",
-      "entry": "DONCH · Donchian 20 · EMA200 trend",
-      "exit": "TP1>BE_3R",
+      "entry": "DONCH · Donchian 20 · filtresiz + günlük trend",
+      "exit": "TP0.5>BE_3R",
       "exit_cfg": {
         "sl_atr": 1.0,
         "tp": 3.0,
-        "tp1": 1.0,
+        "tp1": 0.5,
         "part": 0.0
       },
-      "scope": "long",
+      "scope": "both",
       "cost_bps": 2.0,
       "horizon": 48,
-      "risk_per_trade": 0.015,
-      "rules": "**XAU 4h · yalnızca LONG** — Mum kapanışı önceki 20 mumun en yükseğinin üstündeyse LONG, en düşüğünün altındaysa SHORT (ilk kırılım). Filtre: LONG için kapanış EMA200 üstünde, SHORT için altında. Giriş: sinyal mumunun kapanışından sonraki mumun açılışında. Stop: giriş ∓ 1.0 × ATR(14) (sinyal mumundaki ATR). +1.0R'de stop girişe çekilir. Hedef: +3.0R. 48 mum sonra hâlâ açıksa kapanış fiyatından kapatılır.",
+      "risk_per_trade": 0.01,
+      "rules": "**XAU 4h · LONG ve SHORT** — Mum kapanışı önceki 20 mumun en yükseğinin üstündeyse LONG, en düşüğünün altındaysa SHORT (ilk kırılım). Ek filtre: günlük grafikte önceki gün kapanışı EMA50 üstünde (SHORT: altında). Giriş: sinyal mumunun kapanışından sonraki mumun açılışında. Stop: giriş ∓ 1.0 × ATR(14) (sinyal mumundaki ATR). +0.5R'de stop girişe çekilir. Hedef: +3.0R. 48 mum sonra hâlâ açıksa kapanış fiyatından kapatılır.",
       "backtest": {
-        "exp": 0.3124366600908355,
-        "wr": 0.2777777777777778,
-        "n": 360,
-        "per_year": 24.327474560592044,
-        "oos_exp": 0.6006245140141846,
-        "oos_n": 125,
-        "alpha": 0.5276906639306604
+        "exp": 0.31674252586474305,
+        "wr": 0.22350230414746544,
+        "n": 434,
+        "per_year": 29.426118433265266,
+        "oos_exp": 0.3839200494655335,
+        "oos_n": 144,
+        "alpha": 0.3654163811376519
+      }
+    },
+    {
+      "id": "F2_ETH_4h_DONCH",
+      "asset": "ETH",
+      "tf": "4h",
+      "family": "DONCH",
+      "entry": "DONCH · Donchian 20 · hacim şoku",
+      "exit": "IZ_SUREN_2.5ATR",
+      "exit_cfg": {
+        "sl_atr": 1.0,
+        "tp": null,
+        "trail": 2.5,
+        "trail_mode": "always"
+      },
+      "scope": "both",
+      "cost_bps": 8.0,
+      "horizon": 48,
+      "risk_per_trade": 0.01,
+      "rules": "**ETH 4h · LONG ve SHORT** — Mum kapanışı önceki 20 mumun en yükseğinin üstündeyse LONG, en düşüğünün altındaysa SHORT (ilk kırılım). Filtre: son 2 mumda hacim, son 50 mumun medyanına göre ≥1.5σ (robust) yüksek. Giriş: sinyal mumunun kapanışından sonraki mumun açılışında. Stop: giriş ∓ 1.0 × ATR(14) (sinyal mumundaki ATR). İz süren stop: ulaşılan en uç fiyattan 2.5 × ATR (girişten itibaren). 48 mum sonra hâlâ açıksa kapanış fiyatından kapatılır.",
+      "backtest": {
+        "exp": 0.556687559095202,
+        "wr": 0.36675461741424803,
+        "n": 379,
+        "per_year": 41.935701302635565,
+        "oos_exp": 0.7620360529106934,
+        "oos_n": 108,
+        "alpha": 0.6877832407296914
       }
     }
   ]
