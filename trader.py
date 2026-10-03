@@ -192,7 +192,33 @@ def load_state():
     return st
 
 
-def record(row: dict):
+def realized(br, pos) -> dict:
+    """İşlem kapandıktan sonra borsadaki gerçekleşen dolumlardan çıkış fiyatı, ücret ve net kâr/zarar."""
+    out = {}
+    try:
+        sym, side = pos["symbol"], pos["side"]
+        since = int(pd.Timestamp(pos["entry_time"]).timestamp() * 1000) - 120_000
+        fills = br.ex.fetch_my_trades(sym, since=since, limit=100) if not DRY else []
+        cs = float(br.market(sym).get("contractSize") or 1.0)
+        ex_f = [f for f in fills if (f.get("side") == "sell") == (side == 1)]
+        fee = sum(float((f.get("fee") or {}).get("cost") or 0) for f in fills)
+        q = sum(float(f["amount"]) for f in ex_f)
+        if q > 0:
+            px = sum(float(f["amount"]) * float(f["price"]) for f in ex_f) / q
+            pnl = side * (px - pos["entry"]) * q * cs - fee
+            out = {"exit": px, "fee": fee, "pnl_usdt": pnl}
+            if pos.get("risk_usdt"):
+                out["R"] = pnl / pos["risk_usdt"]
+    except Exception as e:
+        log(f"  (gerçekleşen kâr/zarar okunamadı: {type(e).__name__}: {str(e)[:100]})")
+    return out
+
+
+def record(row: dict, br=None, pos=None):
+    if br is not None and pos is not None:
+        time.sleep(0 if DRY else 2)
+        row.update({"qty": pos.get("qty"), "eq_entry": pos.get("eq_entry"), "risk_usdt": pos.get("risk_usdt")})
+        row.update(realized(br, pos))
     os.makedirs(C.LIVE_STATE_DIR, exist_ok=True)
     new = not os.path.exists(TRADES_FILE)
     pd.DataFrame([row]).to_csv(TRADES_FILE, mode="a", header=new, index=False)
@@ -208,7 +234,7 @@ def manage(br: Broker, fz: dict, pos: dict, now: pd.Timestamp) -> dict | None:
         br.cancel(sym, pos.get("stop_id"), trigger=True)
         br.cancel(sym, pos.get("tp_id"))
         record({"id": fz["id"], "symbol": sym, "side": pos["side"], "entry_time": pos["entry_time"], "entry": pos["entry"],
-                "exit_time": str(now), "reason": "borsada stop/hedef", "stop_last": pos["stop"]})
+                "exit_time": str(now), "reason": "borsada stop/hedef", "stop_last": pos["stop"]}, br, pos)
         return None
     side, e, atr = pos["side"], pos["entry"], pos["atr"]
     risk = cfg["sl_atr"] * atr
@@ -241,7 +267,7 @@ def manage(br: Broker, fz: dict, pos: dict, now: pd.Timestamp) -> dict | None:
         br.cancel(sym, pos.get("tp_id"))
         br.market_order(sym, -side, live["qty"], reduce=True)
         record({"id": fz["id"], "symbol": sym, "side": side, "entry_time": pos["entry_time"], "entry": e,
-                "exit_time": str(now), "reason": "zaman", "stop_last": pos["stop"]})
+                "exit_time": str(now), "reason": "zaman", "stop_last": pos["stop"]}, br, pos)
         return None
     if abs(new_stop - pos["stop"]) > 1e-12 and side * new_stop > side * pos["stop"]:
         log(f"  {fz['id']}: stop {pos['stop']:.4f} → {new_stop:.4f}")
@@ -301,6 +327,7 @@ def open_trade(br: Broker, fz: dict, side: int, atr_sig: float, sig_time, ref_px
             fill = p["entry"] or fill
     stop = fill - side * dist
     pos = {"symbol": sym, "side": side, "qty": qty, "entry": fill, "entry_time": str(pd.Timestamp.now(tz="UTC")),
+           "eq_entry": eq, "risk_usdt": eq * RISK, "dist": dist,
            "signal_time": str(sig_time), "atr": atr_sig, "stop": stop, "be": False}
     pos["stop_id"] = br.stop_order(sym, side, qty, stop)
     pos["tp_id"] = br.limit_close(sym, side, qty, fill + side * cfg["tp"] * dist) if cfg.get("tp") is not None else None
@@ -346,6 +373,36 @@ def active_assets(eq: float, st: dict, br=None) -> set:
         if on:
             out.add(a)
     return out
+
+
+EQUITY_FILE = os.path.join(C.LIVE_STATE_DIR, "kasa_log.csv")
+
+
+def log_equity(br, st):
+    """Her çalıştırmada kasa + o aradaki para giriş/çıkışı (transfer) kaydı → panel için zaman ağırlıklı getiri."""
+    try:
+        eq = br.equity()
+        now = pd.Timestamp.now(tz="UTC")
+        last = st.get("ledger_ms") or int((now - pd.Timedelta(hours=2)).timestamp() * 1000)
+        flow, newest = 0.0, last
+        try:
+            for x in (br.ex.fetch_ledger("USDT", since=last + 1, limit=100, params={"productType": "USDT-FUTURES"}) if not DRY else []):
+                ts = int(x.get("timestamp") or 0)
+                newest = max(newest, ts)
+                typ = str(x.get("type") or "") + " " + str((x.get("info") or {}).get("businessType") or "")
+                if "trans" in typ.lower():          # cüzdanlar arası transfer = yatırım / çekim
+                    amt = float(x.get("amount") or 0)
+                    flow += amt if x.get("direction") != "out" else -amt
+        except Exception as e:
+            log(f"  (transfer kaydı okunamadı — panelde yatirimlar.csv kullanılabilir: {type(e).__name__})")
+        st["ledger_ms"] = newest
+        os.makedirs(C.LIVE_STATE_DIR, exist_ok=True)
+        new = not os.path.exists(EQUITY_FILE)
+        opn = sum(1 for p in st["pos"].values() if p)
+        pd.DataFrame([{"time": str(now.floor("min")), "equity": round(eq, 4), "flow": round(flow, 4), "open_positions": opn}]) \
+          .to_csv(EQUITY_FILE, mode="a", header=new, index=False)
+    except Exception as e:
+        log(f"  (kasa kaydı yazılamadı: {type(e).__name__}: {str(e)[:100]})")
 
 
 def run(br: Broker):
@@ -398,6 +455,7 @@ def run(br: Broker):
                 log(f"  {fid}: {bar_t:%Y-%m-%d %H:%M} mumu — {'pozisyon açık' if pos else 'sinyal yok'}")
         except Exception:
             log(f"  {fid}: HATA\n{traceback.format_exc()}")
+    log_equity(br, st)
     LV.save_json(STATE_FILE, st)
 
 
