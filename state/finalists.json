@@ -1,0 +1,37 @@
+{
+  "olusturma": "2026-10-03T06:05:08.242997+00:00",
+  "sentetik": false,
+  "onerilen_risk": 0.015,
+  "portfoy_max_acik": 4,
+  "kume_max": 1,
+  "finalistler": [
+    {
+      "id": "F1_XAU_4h_DONCH",
+      "asset": "XAU",
+      "tf": "4h",
+      "family": "DONCH",
+      "entry": "DONCH · Donchian 20 · EMA200 trend",
+      "exit": "TP1>BE_3R",
+      "exit_cfg": {
+        "sl_atr": 1.0,
+        "tp": 3.0,
+        "tp1": 1.0,
+        "part": 0.0
+      },
+      "scope": "long",
+      "cost_bps": 2.0,
+      "horizon": 48,
+      "risk_per_trade": 0.015,
+      "rules": "**XAU 4h · yalnızca LONG** — Mum kapanışı önceki 20 mumun en yükseğinin üstündeyse LONG, en düşüğünün altındaysa SHORT (ilk kırılım). Filtre: LONG için kapanış EMA200 üstünde, SHORT için altında. Giriş: sinyal mumunun kapanışından sonraki mumun açılışında. Stop: giriş ∓ 1.0 × ATR(14) (sinyal mumundaki ATR). +1.0R'de stop girişe çekilir. Hedef: +3.0R. 48 mum sonra hâlâ açıksa kapanış fiyatından kapatılır.",
+      "backtest": {
+        "exp": 0.3124366600908355,
+        "wr": 0.2777777777777778,
+        "n": 360,
+        "per_year": 24.327474560592044,
+        "oos_exp": 0.6006245140141846,
+        "oos_n": 125,
+        "alpha": 0.5276906639306604
+      }
+    }
+  ]
+}
