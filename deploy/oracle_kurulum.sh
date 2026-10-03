@@ -36,7 +36,7 @@ apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip git
 timedatectl set-timezone UTC || true
 
-sudo -u $U bash -c "cd $H && rm -rf atvs && git clone -q $REPO atvs && cd atvs && python3 -m venv .venv && .venv/bin/pip install -q --upgrade pip && .venv/bin/pip install -q -r requirements.txt"
+sudo -u $U bash -c "cd $H && rm -rf atvs && git clone -q --single-branch --branch main $REPO atvs && cd atvs && python3 -m venv .venv && .venv/bin/pip install -q --upgrade pip && .venv/bin/pip install -q -r requirements.txt"
 
 cat > $H/run.sh <<'RUN'
 #!/bin/bash
