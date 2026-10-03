@@ -1,4 +1,4 @@
-name: ATVS Lab
+name: ATVS Lab (araştırma + finalist)
 
 on:
   workflow_dispatch:
@@ -7,19 +7,23 @@ on:
         description: "Varlıklar (virgülle): XAU,XAG,BTC,ETH,NQ,SPX"
         default: "XAU,XAG,BTC,ETH,NQ,SPX"
   schedule:
-    - cron: "17 3 * * 0"   # her pazar 03:17 UTC — yeni veriyle yeniden test (kendini güncelleyen seçim)
+    - cron: "17 3 1 * *"   # her ayın 1'i 03:17 UTC — yeni veriyle yeniden araştırma, finalistler güncellenir
 
 permissions:
   contents: write
 
 concurrency:
-  group: atvs-lab
+  group: atvs-repo-write
   cancel-in-progress: false
 
 jobs:
   lab:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 340
+    env:
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN || secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -30,6 +34,10 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - name: Öz-test (internetsiz)
+        run: |
+          python selftest.py || (python notify.py "⚠️ ATVS öz-test BAŞARISIZ — araştırma durduruldu. Actions loguna bakın." && exit 1)
+
       - name: Veri önbelleği
         uses: actions/cache@v4
         with:
@@ -37,18 +45,40 @@ jobs:
           key: atvs-data-${{ github.run_id }}
           restore-keys: atvs-data-
 
-      - name: Laboratuvarı çalıştır
-        run: python run_lab.py --assets "${{ github.event.inputs.assets || 'XAU,XAG,BTC,ETH,NQ,SPX' }}"
+      - name: Araştırma + finalist + portföy
+        run: |
+          set -o pipefail
+          mkdir -p reports state
+          python run_lab.py --assets "${{ github.event.inputs.assets || 'XAU,XAG,BTC,ETH,NQ,SPX' }}" 2>&1 | tee reports/calisma_logu.txt
+          test -f state/finalists.json || (python notify.py "⚠️ ATVS araştırma finalist dosyası üretemedi." && exit 1)
+
+      - name: Özet bildirimi
+        if: success()
+        run: |
+          python - <<'PY'
+          import json, live
+          m = json.load(open("state/finalists.json", encoding="utf-8"))
+          fs = m.get("finalistler", [])
+          r = m.get("onerilen_risk")
+          lines = [f"🧪 <b>ATVS araştırma tamamlandı</b> — {len(fs)} finalist", f"Önerilen risk: {('%' + format(100*r, '.2g')) if r else 'öneri yok (hedef düşüş sağlanamadı)'}"]
+          lines += [f"• {f['id']}: {f['entry']} · {f['exit']} · {f['scope']} · backtest {f['backtest']['exp']:+.2f}R/işlem" for f in fs]
+          lines.append("Ayrıntı: reports/RAPOR.md")
+          live.tg("\n".join(lines))
+          PY
 
       - name: Raporu depoya yaz
+        if: always()
         run: |
           git config user.name "atvs-lab-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add reports
-          git commit -m "ATVS Lab raporu $(date -u +%Y-%m-%d)" || echo "değişiklik yok"
-          git push
+          git add reports state/finalists.json || true
+          git commit -m "ATVS araştırma $(date -u +%Y-%m-%d)" || { echo "değişiklik yok"; exit 0; }
+          for i in 1 2 3 4 5; do git pull --rebase --autostash && git push && break; sleep $((i*10)); done
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: atvs-lab-rapor
-          path: reports
+          path: |
+            reports
+            selftest_sonuc.txt

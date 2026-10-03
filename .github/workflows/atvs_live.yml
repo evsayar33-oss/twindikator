@@ -1,0 +1,55 @@
+name: ATVS Canlı (kâğıt işlem + Telegram)
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Yeni mum beklemeden zorla çalıştır (1)"
+        default: "0"
+  schedule:
+    - cron: "7 * * * *"    # her saat :07 — mum kapanışından sonra (yeni mum yoksa motor hemen çıkar)
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atvs-live
+  cancel-in-progress: false
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN || secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      ATVS_FORCE: ${{ github.event.inputs.force || '0' }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Veri önbelleği (araştırmanın indirdiği geçmiş; yalnızca okunur)
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: atvs-data-none
+          restore-keys: atvs-data-
+
+      - name: Canlı motor
+        run: python live.py
+
+      - name: Durumu depoya yaz
+        if: always()
+        run: |
+          git config user.name "atvs-live-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state || true
+          git commit -m "ATVS canlı $(date -u +%Y-%m-%dT%H:%M)" || { echo "değişiklik yok"; exit 0; }
+          for i in 1 2 3 4 5; do git pull --rebase --autostash && git push && break; sleep $((i*10)); done
