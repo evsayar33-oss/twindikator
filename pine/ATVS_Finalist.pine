@@ -1,0 +1,264 @@
+//@version=6
+strategy("ATVS Finalist — laboratuvar stratejisi", shorttitle = "ATVS-F", overlay = true, pyramiding = 0,
+     default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_type = strategy.commission.percent,
+     commission_value = 0.01, process_orders_on_close = false, calc_on_every_tick = false, max_labels_count = 500)
+
+// Python laboratuvarındaki (lab/strategies.py + lab/exits.py) kurallarla aynı mantık. Ayarları RAPOR.md → "Finalistler"
+// tablosundan ve finalists.json'dan gir. Amaç: TradingView strateji test aracında çapraz kontrol + görsel takip.
+// Not: TradingView mum içi sıra varsayımı laboratuvardan farklı olabilir (lab: aynı mumda stop+hedef → stop). Küçük farklar normaldir.
+// META (gradient boosting) ailesi Pine'da yoktur; onu yalnızca Telegram motoru izler.
+
+// ───────── giriş ailesi
+string GF = "Giriş (rapordaki finalist)"
+string fam    = input.string("DONCH", "Aile", options = ["DONCH", "RSI2", "SQZ", "MA-EMA", "MA-MOMENTUM", "OSC", "REJIM"], group = GF)
+string scope  = input.string("iki yön", "Yön", options = ["iki yön", "yalnız LONG", "yalnız SHORT"], group = GF)
+int    donN   = input.int(20, "Donchian uzunluk", minval = 2, group = GF)
+string donF   = input.string("filtresiz", "Donchian filtresi", options = ["filtresiz", "hacim şoku", "EMA200 trend", "sıkışma sonrası"], group = GF)
+int    rsi2Lo = input.int(10, "RSI(2) alt eşik (üst = 100 − alt)", minval = 1, maxval = 49, group = GF)
+bool   rsi2Tr = input.bool(true, "RSI(2): EMA200 trend filtresi", group = GF)
+bool   sqzVol = input.bool(false, "Sıkışma: hacim şoku filtresi", group = GF)
+int    maFast = input.int(20, "EMA hızlı", minval = 2, group = GF, inline = "ma")
+int    maSlow = input.int(50, "yavaş", minval = 3, group = GF, inline = "ma")
+int    momN   = input.int(72, "Momentum (bar)", minval = 2, group = GF)
+
+string GO = "OSC / REJIM ayarları"
+bool   useR   = input.bool(false, "RSI", group = GO, inline = "o")
+bool   useS   = input.bool(true, "Stoch", group = GO, inline = "o")
+bool   useW   = input.bool(false, "WaveTrend", group = GO, inline = "o")
+string oMode  = input.string("dinamik", "Eşik", options = ["dinamik", "sabit"], group = GO)
+bool   fVol   = input.bool(false, "OSC: hacim şoku", group = GO, inline = "f")
+bool   fVty   = input.bool(false, "volatilite şoku", group = GO, inline = "f")
+bool   fTr    = input.bool(false, "OSC: EMA200 trend", group = GO, inline = "g")
+bool   fConf  = input.bool(false, "onay mumu", group = GO, inline = "g")
+string rjMode = input.string("anahtar (ikisi)", "REJIM modu", options = ["yatayda dönüş", "trendde geri çekilme", "anahtar (ikisi)"], group = GO)
+bool   rjVty  = input.bool(false, "REJIM: volatilite şoku", group = GO)
+
+// ───────── çıkış
+string GX = "Çıkış (rapordaki çıkış adı)"
+float slAtr  = input.float(1.0, "Stop (ATR)", step = 0.05, group = GX)
+bool  useTp  = input.bool(true, "Son hedef kullan", group = GX, inline = "tp")
+float tpR    = input.float(3.0, "Hedef (R)", step = 0.5, group = GX, inline = "tp")
+bool  useTp1 = input.bool(true, "TP1 → stop girişe", group = GX, inline = "t1")
+float tp1R   = input.float(1.0, "TP1 (R)", step = 0.25, group = GX, inline = "t1")
+float part   = input.float(0.0, "TP1'de kapatılan oran", minval = 0, maxval = 0.9, step = 0.1, group = GX)
+bool  useTr  = input.bool(false, "İz süren stop", group = GX, inline = "tr")
+float trAtr  = input.float(2.5, "ATR", step = 0.25, group = GX, inline = "tr")
+string trMode = input.string("girişten itibaren", "İz süren başlangıç", options = ["girişten itibaren", "TP1 sonrası"], group = GX)
+int   horizon = input.int(48, "Zaman çıkışı (mum)", minval = 2, group = GX)
+
+// ───────── ortak göstergeler (lab/features.py ile aynı tanımlar)
+float trv    = ta.tr(true)
+float atrRaw = ta.rma(trv, 14)
+float atrMed = ta.median(atrRaw, 500)
+float atr    = math.max(atrRaw, 0.5 * nz(atrMed, atrRaw))
+float ema200 = ta.ema(close, 200)
+
+f_rz(float x) =>
+    float med = ta.median(x, 50)
+    float mad = ta.median(math.abs(x - med), 50)
+    float sc  = 1.4826 * nz(mad[1])
+    sc > 0 ? (x - med[1]) / sc : na
+
+bool  hasVol = ta.cum(nz(volume)) > 0
+float volZ = f_rz(math.log(nz(volume) + 1.0))
+float vtyZ = f_rz(math.log(math.max(trv, 1e-12)))
+
+f_any(bool b, int n) =>
+    ta.highest(b ? 1 : 0, n) > 0
+
+f_cool(bool e, int n) =>
+    bool prev = ta.highest(e[1] ? 1 : 0, n) > 0
+    e and not prev
+
+// ta.* çağrıları koşulsuz hesaplanır (Pine v6'da and/or tembel değerlendirilir)
+bool vz2 = f_any(nz(volZ) >= 1.5, 2)
+bool vz3 = f_any(nz(volZ) >= 1.5, 3)
+bool vz6 = f_any(nz(volZ) >= 1.5, 6)
+bool volS2 = not hasVol or vz2
+bool volS3 = not hasVol or vz3
+bool volS6 = not hasVol or vz6
+bool vtyS6 = f_any(nz(vtyZ) >= 1.5, 6)
+
+// Bollinger (örneklem std, pandas ile aynı) / Keltner
+float basis = ta.sma(close, 20)
+float sdS   = ta.stdev(close, 20) * math.sqrt(20.0 / 19.0)
+float bbUp  = basis + 2.0 * sdS
+float bbDn  = basis - 2.0 * sdS
+float kcMid = ta.ema(close, 20)
+float kcAtr = ta.rma(trv, 20)
+float kcUp  = kcMid + 1.5 * kcAtr
+float kcDn  = kcMid - 1.5 * kcAtr
+float bbw   = basis > 0 ? (bbUp - bbDn) / basis : na
+float bbwPct = ta.percentrank(bbw, 200) / 100.0
+
+// ───────── aile sinyalleri
+bool sigL = false
+bool sigS = false
+
+// DONCH
+float hh = ta.highest(high, donN)[1]
+float ll = ta.lowest(low, donN)[1]
+bool dL0 = close > hh
+bool dS0 = close < ll
+bool dL = dL0 and not dL0[1]
+bool dS = dS0 and not dS0[1]
+bool sqzPrev = f_any(nz(bbwPct[1], 1.0) < 0.2, 10)
+bool dfL = donF == "filtresiz" ? true : donF == "hacim şoku" ? volS2 : donF == "EMA200 trend" ? close > ema200 : sqzPrev
+bool dfS = donF == "filtresiz" ? true : donF == "hacim şoku" ? volS2 : donF == "EMA200 trend" ? close < ema200 : sqzPrev
+bool donL = f_cool(dL and dfL, 12)
+bool donS = f_cool(dS and dfS, 12)
+
+// RSI2
+float r2 = ta.rsi(close, 2)
+bool r2L0 = ta.crossunder(r2, rsi2Lo) and (not rsi2Tr or close > ema200)
+bool r2S0 = ta.crossover(r2, 100 - rsi2Lo) and (not rsi2Tr or close < ema200)
+bool r2L = f_cool(r2L0, 6)
+bool r2S = f_cool(r2S0, 6)
+
+// SQZ
+bool sqOn = bbUp < kcUp and bbDn > kcDn
+var int sqRun = 0
+sqRun := sqOn ? sqRun + 1 : 0
+bool release = not sqOn and nz(sqRun[1]) >= 6
+bool sqL = f_cool(release and close > basis and (not sqzVol or volS3), 12)
+bool sqS = f_cool(release and close < basis and (not sqzVol or volS3), 12)
+
+// MA
+float dma = ta.ema(close, maFast) - ta.ema(close, maSlow)
+bool maL = ta.crossover(dma, 0)
+bool maS = ta.crossunder(dma, 0)
+float mom = math.log(close / close[momN])
+bool moL = f_cool(ta.crossover(mom, 0), 12)
+bool moS = f_cool(ta.crossunder(mom, 0), 12)
+
+// OSC (osilatörler: RSI14, Stoch14/3, WaveTrend tanh-normalize)
+f_tanh(float x) =>
+    float e = math.exp(2.0 * math.max(-20.0, math.min(20.0, x)))
+    (e - 1.0) / (e + 1.0)
+float oR = ta.rsi(close, 14)
+float oS = ta.sma(ta.stoch(close, high, low, 14), 3)
+float ap = hlc3
+float esa = ta.ema(ap, 10)
+float dvv = ta.ema(math.abs(ap - esa), 10)
+float wt1 = ta.ema(dvv > 0 ? (ap - esa) / (0.015 * dvv) : 0.0, 21)
+float oW = 50.0 + 50.0 * f_tanh(wt1 / 75.0)
+bool dyn = oMode == "dinamik"
+f_up(float x) =>
+    float p = ta.percentile_linear_interpolation(x, 300, 90)
+    dyn ? math.min(math.max(nz(p[1], 80.0), 65.0), 92.0) : 80.0
+f_dn(float x) =>
+    float p = ta.percentile_linear_interpolation(x, 300, 10)
+    dyn ? math.min(math.max(nz(p[1], 20.0), 8.0), 35.0) : 20.0
+float rU = f_up(oR)
+float rD = f_dn(oR)
+float sU = f_up(oS)
+float sD = f_dn(oS)
+float wU = f_up(oW)
+float wD = f_dn(oW)
+bool rOB = oR > rU
+bool rOS = oR < rD
+bool sOB = oS > sU
+bool sOS = oS < sD
+bool wOB = oW > wU
+bool wOS = oW < wD
+bool tRO = f_any(rOB, 6)
+bool tRS = f_any(rOS, 6)
+bool tSO = f_any(sOB, 6)
+bool tSS = f_any(sOS, 6)
+bool tWO = f_any(wOB, 6)
+bool tWS = f_any(wOS, 6)
+bool xRO = rOB[1] and not rOB
+bool xRS = rOS[1] and not rOS
+bool xSO = sOB[1] and not sOB
+bool xSS = sOS[1] and not sOS
+bool xWO = wOB[1] and not wOB
+bool xWS = wOS[1] and not wOS
+bool anyO = useR or useS or useW
+bool armS = anyO and (not useR or tRO) and (not useS or tSO) and (not useW or tWO)
+bool armL = anyO and (not useR or tRS) and (not useS or tSS) and (not useW or tWS)
+bool evS = armS and ((useR and xRO) or (useS and xSO) or (useW and xWO))
+bool evL = armL and ((useR and xRS) or (useS and xSS) or (useW and xWS))
+bool oscL = f_cool(evL and (not fVol or volS6) and (not fVty or vtyS6) and (not fTr or close > ema200) and (not fConf or (close > open and close > close[1])), 6)
+bool oscS = f_cool(evS and (not fVol or volS6) and (not fVty or vtyS6) and (not fTr or close < ema200) and (not fConf or (close < open and close < close[1])), 6)
+
+// REJIM (verimlilik oranı persentilleri)
+float er = math.abs(close - close[20]) / math.sum(math.abs(close - close[1]), 20)
+float erLo = ta.percentile_linear_interpolation(er, 300, 40)[1]
+float erHi = ta.percentile_linear_interpolation(er, 300, 60)[1]
+bool rng = er < erLo
+bool tUp = er > erHi and close > ema200
+bool tDn = er > erHi and close < ema200
+bool rjM = not rjVty or vtyS6
+bool rjL0 = evL and rjM and (rjMode == "yatayda dönüş" ? rng : rjMode == "trendde geri çekilme" ? tUp : (rng or tUp))
+bool rjS0 = evS and rjM and (rjMode == "yatayda dönüş" ? rng : rjMode == "trendde geri çekilme" ? tDn : (rng or tDn))
+bool rjL = f_cool(rjL0, 6)
+bool rjS = f_cool(rjS0, 6)
+
+sigL := fam == "DONCH" ? donL : fam == "RSI2" ? r2L : fam == "SQZ" ? sqL : fam == "MA-EMA" ? maL : fam == "MA-MOMENTUM" ? moL : fam == "OSC" ? oscL : rjL
+sigS := fam == "DONCH" ? donS : fam == "RSI2" ? r2S : fam == "SQZ" ? sqS : fam == "MA-EMA" ? maS : fam == "MA-MOMENTUM" ? moS : fam == "OSC" ? oscS : rjS
+if scope == "yalnız LONG"
+    sigS := false
+if scope == "yalnız SHORT"
+    sigL := false
+if sigL and sigS
+    sigL := false
+    sigS := false
+
+// ───────── pozisyon yönetimi (lab/exits.py ile aynı kurallar)
+var float sigAtr = na
+var int   sigBar = na
+var int   dir    = 0
+var float eStop  = na
+var float eExt   = na
+var bool  beOn   = false
+
+if strategy.position_size == 0 and dir != 0
+    dir := 0
+if strategy.position_size == 0 and barstate.isconfirmed and (sigL or sigS)
+    dir    := sigL ? 1 : -1
+    sigAtr := atr
+    sigBar := bar_index
+    beOn   := false
+    eStop  := na
+    eExt   := na
+    string eid0 = sigL ? "L" : "S"
+    float riskT = slAtr * atr / syminfo.mintick
+    strategy.entry(eid0, sigL ? strategy.long : strategy.short)
+    // giriş mumunda da geçerli olsun diye çıkış emirleri giriş fiyatına göre (tick) şimdiden verilir
+    if useTp1 and part > 0
+        strategy.exit("TP1", eid0, qty_percent = part * 100, profit = tp1R * riskT)
+    strategy.exit("ÇIKIŞ", eid0, loss = riskT, profit = useTp ? tpR * riskT : na)
+
+float entryPx = strategy.position_avg_price
+bool inPos = strategy.position_size != 0
+if inPos and dir != 0
+    float risk = slAtr * sigAtr
+    if na(eStop)
+        eStop := entryPx - dir * risk
+        eExt  := entryPx
+    float hiS = dir == 1 ? high : -low
+    // TP1 (bu mumda dokunulduysa stop bir SONRAKİ mumdan itibaren girişe)
+    if useTp1 and not beOn and hiS >= dir * entryPx + tp1R * risk
+        beOn := true
+        eStop := dir == 1 ? math.max(eStop, entryPx) : math.min(eStop, entryPx)
+    // iz süren stop: en uç fiyat her mum izlenir; stop modu izin verdiğinde güncellenir
+    eExt := dir == 1 ? math.max(eExt, high) : math.min(eExt, low)
+    if useTr and (trMode == "girişten itibaren" or beOn)
+        float tStop = eExt - dir * trAtr * sigAtr
+        eStop := dir == 1 ? math.max(eStop, tStop) : math.min(eStop, tStop)
+    float tp1Px = entryPx + dir * tp1R * risk
+    float tpPx  = entryPx + dir * tpR * risk
+    string eid = dir == 1 ? "L" : "S"
+    if useTp1 and part > 0 and not beOn
+        strategy.exit("TP1", eid, qty_percent = part * 100, limit = tp1Px)
+    strategy.exit("ÇIKIŞ", eid, stop = eStop, limit = useTp ? tpPx : na)
+    if bar_index - sigBar >= horizon
+        strategy.close(eid, comment = "zaman", immediately = true)
+
+// ───────── çizim + alarmlar
+plotshape(sigL and strategy.position_size == 0, "LONG sinyali", shape.triangleup, location.belowbar, color.new(#00e676, 0), size = size.tiny)
+plotshape(sigS and strategy.position_size == 0, "SHORT sinyali", shape.triangledown, location.abovebar, color.new(#ff5252, 0), size = size.tiny)
+plot(inPos ? eStop : na, "Stop", color.new(#ff5252, 0), style = plot.style_linebr)
+plot(inPos ? strategy.position_avg_price + dir * tpR * slAtr * sigAtr : na, "Hedef", color.new(#00e676, 30), style = plot.style_linebr)
+alertcondition(sigL, "ATVS-F LONG", "ATVS-F LONG {{ticker}} {{interval}} @ {{close}}")
+alertcondition(sigS, "ATVS-F SHORT", "ATVS-F SHORT {{ticker}} {{interval}} @ {{close}}")
