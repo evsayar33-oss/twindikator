@@ -1,0 +1,2 @@
+XAU
+ETH OTO    # ETH botu, kasa "asgari kasanın 2 katını" geçince kendiliğinden devreye girer (eşiği bot her gün kendisi hesaplar)
