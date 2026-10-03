@@ -31,7 +31,7 @@ BENCH = {
     "Altın (XAU)":            ("GC=F", "#c98500"),
     "S&P 500":                ("^GSPC", "#d95926"),
     "Dolar endeksi (DXY)":    ("DX-Y.NYB", "#199e70"),
-    "Dolar/TL (USD tutmak)":  ("TRY=X", "#9085e9"),
+    "Dolar (nakit tutmak)":   ("USD", "#9085e9"),
     "Bitcoin":                ("BTC-USD", "#d55181"),
     "Nasdaq 100":             ("^NDX", "#008300"),
 }
@@ -157,6 +157,26 @@ def stats(ret: pd.Series, ann: int = 365) -> dict:
             "Maks. düşüş": mdd, "Calmar": (cagr / -mdd) if mdd < 0 and not np.isnan(cagr) else np.nan}
 
 
+def prep(strat_idx: pd.Series, names: dict, ccy: str):
+    """Tüm serileri AYNI para biriminde verir. USD: dolar tutmak = düz çizgi (0%).
+    TL: ATVS ve dolar bazlı varlıklar USD/TL ile çarpılır; dolar tutmak = USD/TL'nin kendisi."""
+    tks = tuple(sorted({t for t in names.values() if t != "USD"} | ({"TRY=X"} if ccy == "TL" else set())))
+    start = str((strat_idx.index[0] - pd.Timedelta(days=7)).date())
+    raw = load_bench(tks, start) if tks else pd.DataFrame()
+    raw = raw.reindex(raw.index.union(strat_idx.index)).ffill().reindex(strat_idx.index).bfill()
+    bench = pd.DataFrame(index=strat_idx.index)
+    for nm, tk in names.items():
+        bench[tk] = 1.0 if tk == "USD" else raw.get(tk)
+    s_idx = strat_idx.copy()
+    if ccy == "TL" and "TRY=X" in raw:
+        fx = raw["TRY=X"]
+        for tk in bench.columns:
+            if tk != "DX-Y.NYB":
+                bench[tk] = bench[tk] * fx
+        s_idx = s_idx * fx
+    return s_idx, bench.dropna(axis=1, how="all")
+
+
 def compare_table(strat: pd.Series, bench: pd.DataFrame, names: dict, ann: int) -> pd.DataFrame:
     rows = {"ATVS": stats(strat, ann)}
     for nm, tk in names.items():
@@ -247,9 +267,11 @@ live, bt = load_live(), load_backtest()
 
 with st.sidebar:
     st.header("Kıyaslama")
-    pick = st.multiselect("Karşılaştırılacak varlıklar", list(BENCH), default=["Altın (XAU)", "S&P 500", "Dolar/TL (USD tutmak)"])
+    ccy = st.radio("Getiriler hangi para biriminde?", ["USD", "TL"], horizontal=True)
+    pick = st.multiselect("Karşılaştırılacak varlıklar", list(BENCH), default=["Altın (XAU)", "S&P 500", "Dolar (nakit tutmak)"])
     names = {n: BENCH[n][0] for n in pick}
-    st.caption("ATVS kasası USDT cinsindendir. 'Dolar/TL' çizgisi, aynı parayı dolar olarak tutmanın TL bazındaki getirisidir.")
+    st.caption("Bütün çizgiler aynı para biriminde gösterilir. USD'de dolar tutmak %0'dır; TL'de dolar tutmak "
+               "USD/TL artışı kadar kazandırır ve ATVS de aynı kur artışını ayrıca alır.")
     if st.button("Veriyi yenile"):
         st.cache_data.clear()
         st.rerun()
@@ -287,15 +309,15 @@ with tab_live:
         st.plotly_chart(fig, use_container_width=True)
 
         if len(d) > 2:
-            bench = load_bench(tuple(names.values()), str((d.index[0] - pd.Timedelta(days=7)).date()))
-            st.plotly_chart(rebased_chart(d["index"], bench, names, "Öz sermaye getirisi ve kıyaslama"), use_container_width=True)
+            s_idx, bench = prep(d["index"], names, ccy)
+            st.plotly_chart(rebased_chart(s_idx, bench, names, f"Öz sermaye getirisi ve kıyaslama ({ccy})"), use_container_width=True)
             c1, c2 = st.columns([3, 2])
             c1.plotly_chart(dd_chart(d["index"]), use_container_width=True)
             with c2:
                 st.markdown("**Aylık getiri**")
                 st.dataframe(heat(monthly_table(d["ret"])), use_container_width=True)
             st.markdown("**Kıyaslama tablosu** (aynı dönem)")
-            st.dataframe(fmt_table(compare_table(d["ret"], bench, names, 365)), use_container_width=True)
+            st.dataframe(fmt_table(compare_table(s_idx.pct_change().fillna(0.0), bench, names, 365)), use_container_width=True)
             if len(d) < 90:
                 st.caption("90 günden kısa dönemde yıllık oranlar (CAGR, Sharpe) anlamlı değildir; birkaç ay sonra yorumla.")
 
@@ -365,8 +387,9 @@ with tab_bt:
         r = eq.pct_change().fillna(0.0)
         st.caption("İki finalist (XAU + ETH) birlikte, olay tabanlı portföy simülasyonu; maliyetler dahil. "
                    "Geçmiş sonuçtur, geleceği garanti etmez. Yalnızca XAU çalışırken getiri bundan düşük olur.")
-        bench = load_bench(tuple(names.values()), str(eq.index[0].date()))
-        st.plotly_chart(rebased_chart(eq, bench, names, f"Backtest öz sermaye ({rc.replace('risk_', 'risk ')}) ve kıyaslama", log=True),
+        eq, bench = prep(eq, names, ccy)
+        r = eq.pct_change().fillna(0.0)
+        st.plotly_chart(rebased_chart(eq, bench, names, f"Backtest öz sermaye ({rc.replace('risk_', 'risk ')}, {ccy}) ve kıyaslama", log=True),
                         use_container_width=True)
         st.plotly_chart(dd_chart(eq, "Backtest zirveden düşüş"), use_container_width=True)
         st.markdown("**Kıyaslama tablosu**")
