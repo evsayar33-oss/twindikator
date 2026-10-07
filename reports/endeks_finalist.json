@@ -1,24 +1,24 @@
 {
- "olusturma": "2026-10-07T18:11+00:00",
+ "olusturma": "2026-10-07T19:52+00:00",
  "sentetik": false,
  "hedef_mdd": 0.15,
  "maliyet": {
-  "taker_bps": 6.0,
+  "taker_bps": 2.0,
   "funding_bps_gun": 3.0
  },
  "temel": [
   {
    "id": "F1_XAU_4h_DONCH",
    "eski_exp": 0.316742525864694,
-   "bitget_exp": 0.001687595582966822,
-   "bitget_oos_exp": 0.08999556951327009,
+   "bitget_exp": 0.18652967817919544,
+   "bitget_oos_exp": 0.26152357234001544,
    "n": 434
   },
   {
    "id": "F2_ETH_4h_DONCH",
    "eski_exp": 0.556687559095202,
-   "bitget_exp": 0.5082312066793736,
-   "bitget_oos_exp": 0.7247540293005336,
+   "bitget_exp": 0.5495455009936404,
+   "bitget_oos_exp": 0.7688068061778428,
    "n": 379
   }
  ],

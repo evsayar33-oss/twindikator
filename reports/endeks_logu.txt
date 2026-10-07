@@ -1,20 +1,20 @@
-═══ ATVS v4 ENDEKS ARAŞTIRMASI · 2026-10-07 18:04 UTC · hedef düşüş %15 ═══
-Bitget maliyeti: taker 6.0 bps × 2 + spread · fonlama 3.0 bps/gün
+═══ ATVS v4 ENDEKS ARAŞTIRMASI · 2026-10-07 19:36 UTC · hedef düşüş %15 ═══
+Bitget maliyeti: taker 2.0 bps × 2 + spread · fonlama 3.0 bps/gün
 
 ── Veri
-  ETH: 79995 saatlik mum · 2017-08 → 2026-10 · kaynak binance · doğrulama düzeltildi
-  NQ: 74986 saatlik mum · 2012-01 → 2026-10 · kaynak dukascopy · doğrulama düzeltildi
-  SPX: 75629 saatlik mum · 2012-01 → 2026-10 · kaynak dukascopy · doğrulama düzeltildi
-  XAU: 89429 saatlik mum · 2011-10 → 2026-10 · kaynak dukascopy · doğrulama temiz
+  ETH: 79996 saatlik mum · 2017-08 → 2026-10 · kaynak binance · doğrulama düzeltildi
+  NQ: 74987 saatlik mum · 2012-01 → 2026-10 · kaynak dukascopy · doğrulama düzeltildi
+  SPX: 75630 saatlik mum · 2012-01 → 2026-10 · kaynak dukascopy · doğrulama düzeltildi
+  XAU: 89430 saatlik mum · 2011-10 → 2026-10 · kaynak dukascopy · doğrulama temiz
 
 ── 1) Mevcut finalistler — Bitget gerçek maliyetiyle
-  F1_XAU_4h_DONCH: eski maliyet +0.317R → Bitget +0.002R (OOS +0.090R, 434 işlem)
-  F2_ETH_4h_DONCH: eski maliyet +0.557R → Bitget +0.508R (OOS +0.725R, 379 işlem)
+  F1_XAU_4h_DONCH: eski maliyet +0.317R → Bitget +0.187R (OOS +0.262R, 434 işlem)
+  F2_ETH_4h_DONCH: eski maliyet +0.557R → Bitget +0.550R (OOS +0.769R, 379 işlem)
 
 ── 2) Endeks taraması
-  NQ: 3640 seans günü (2012-01 → 2026-10) · 618 ayar · IS t≥2.0: 3 · 4s
-  SPX: 3650 seans günü (2012-01 → 2026-10) · 618 ayar · IS t≥2.0: 0 · 4s
-  kapıların hepsini geçen: 0 / 3 aday
+  NQ: 3641 seans günü (2012-01 → 2026-10) · 618 ayar · IS t≥2.0: 10 · 2s
+  SPX: 3651 seans günü (2012-01 → 2026-10) · 618 ayar · IS t≥2.0: 0 · 2s
+  kapıların hepsini geçen: 0 / 10 aday
 
 ── 3) Portföy katkısı (Monte Carlo, hedef düşüş içinde en yüksek CAGR)
 
