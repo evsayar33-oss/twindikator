@@ -1,0 +1,172 @@
+{
+  "XAU": {
+    "zaman_dilimi": "1d",
+    "yon": "short",
+    "aile": "MACDYON",
+    "giris": "MACDYON · yön dönüşü (1s eşdeğeri)",
+    "cikis": "SABIT_2R",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": 2.0
+    },
+    "is": {
+      "n": "60",
+      "wr": 0.5166666666666667,
+      "exp": 0.2970952343000777,
+      "pf": 1.5075664267387106,
+      "pm": 0.47649360813983827
+    },
+    "oos": {
+      "n": "28",
+      "wr": 0.39285714285714285,
+      "exp": -0.07343284409827475,
+      "pf": 0.8977694514286076,
+      "pm": 0.5187583688374924,
+      "p": 0.6080638982687883
+    },
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "ETH": {
+    "zaman_dilimi": "4h",
+    "yon": "long",
+    "aile": "DONCH",
+    "giris": "DONCH · Donchian 20 · sıkışma sonrası + MACD yön 1s",
+    "cikis": "TP1.5>BE_4R",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": 4.0,
+      "tp1": 1.5,
+      "part": 0.0
+    },
+    "is": {
+      "n": "77",
+      "wr": 0.4025974025974026,
+      "exp": 1.1451781791402145,
+      "pf": 3.6932947790636375,
+      "pm": 1.002943945228926
+    },
+    "oos": {
+      "n": "48",
+      "wr": 0.125,
+      "exp": -0.18857166274436596,
+      "pf": 0.7206073733267208,
+      "pm": 1.46112,
+      "p": 0.7899089099823844
+    },
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "BTC": {
+    "zaman_dilimi": "4h",
+    "yon": "short",
+    "aile": "DONCH",
+    "giris": "DONCH · Donchian 20 · hacim şoku + MACD yön",
+    "cikis": "IZ_SUREN_2.5ATR",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": null,
+      "trail": 2.5,
+      "trail_mode": "always"
+    },
+    "is": {
+      "n": "58",
+      "wr": 0.43103448275862066,
+      "exp": 1.1678078833326686,
+      "pf": 3.1424171775055947,
+      "pm": 0.755464270432178
+    },
+    "oos": {
+      "n": "32",
+      "wr": 0.375,
+      "exp": 0.18530899656745262,
+      "pf": 1.2957455984242474,
+      "pm": 0.97408,
+      "p": 0.31003087983512717
+    },
+    "karar": "⚠️ Pozitif, anlamsız"
+  },
+  "XAG": {
+    "zaman_dilimi": "1d",
+    "yon": "short",
+    "aile": "MA",
+    "giris": "MA · zaman serisi momentumu 24 bar",
+    "cikis": "TP1>BE_2R",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": 2.0,
+      "tp1": 1.0,
+      "part": 0.0
+    },
+    "is": {
+      "n": "75",
+      "wr": 0.4666666666666667,
+      "exp": 0.3843417376357923,
+      "pf": 1.806004094599264,
+      "pm": 0.5956170101747978
+    },
+    "oos": {
+      "n": "30",
+      "wr": 0.2,
+      "exp": -0.24186164229307477,
+      "pf": 0.6118667920673144,
+      "pm": 0.5558125380401705,
+      "p": 0.8717764781619001
+    },
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "NQ": {
+    "zaman_dilimi": "4h",
+    "yon": "long",
+    "aile": "MA",
+    "giris": "MA · EMA 20/50 kesişimi + MACD yön",
+    "cikis": "IZ_SUREN_2.5ATR",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": null,
+      "trail": 2.5,
+      "trail_mode": "always"
+    },
+    "is": {
+      "n": "61",
+      "wr": 0.47540983606557374,
+      "exp": 1.0297987977461855,
+      "pf": 2.716753040828394,
+      "pm": 0.474167517875383
+    },
+    "oos": {
+      "n": "36",
+      "wr": 0.16666666666666666,
+      "exp": -0.6276696942307214,
+      "pf": 0.3710342395308944,
+      "pm": 0.7516049382716049,
+      "p": 0.996013559985435
+    },
+    "karar": "❌ OOS'ta tutmadı"
+  },
+  "SPX": {
+    "zaman_dilimi": "1d",
+    "yon": "both",
+    "aile": "DONCH",
+    "giris": "DONCH · Donchian 55 · filtresiz + MACD yön 1s",
+    "cikis": "SABIT_1.5R",
+    "cikis_parametreleri": {
+      "sl_atr": 1.0,
+      "tp": 1.5
+    },
+    "is": {
+      "n": "57",
+      "wr": 0.5964912280701754,
+      "exp": 0.17740912736475709,
+      "pf": 1.341066441397486,
+      "pm": 0.4495025906735751
+    },
+    "oos": {
+      "n": "20",
+      "wr": 0.45,
+      "exp": -0.2113142293409347,
+      "pf": 0.7045708032951423,
+      "pm": 0.401318391562294,
+      "p": 0.7753023741799496
+    },
+    "karar": "❌ OOS'ta tutmadı"
+  }
+}

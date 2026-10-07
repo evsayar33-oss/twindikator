@@ -1,0 +1,134 @@
+  doğrulama XAU 1h: temiz · düzeltilen ay 0 · atılan ay 0 · sıçrama 0
+XAU 1h: 89,429 bar 2011-10-09 21:00:00+00:00 → 2026-10-07 17:00:00+00:00 [dukascopy]
+  doğrulama XAU 5m: temiz · düzeltilen ay 0 · atılan ay 0 · sıçrama 0
+XAU 5m: 141,776 bar 2024-10-07 19:00:00+00:00 → 2026-10-07 17:55:00+00:00 [dukascopy]
+  doğrulama ETH 1h: düzeltildi · düzeltilen ay 0 · atılan ay 0 · sıçrama 4
+ETH 1h: 79,995 bar 2017-08-17 04:00:00+00:00 → 2026-10-07 18:00:00+00:00 [binance]
+  doğrulama ETH 5m: düzeltildi · düzeltilen ay 0 · atılan ay 0 · sıçrama 4
+ETH 5m: 210,237 bar 2024-10-07 19:00:00+00:00 → 2026-10-07 19:00:00+00:00 [binance]
+ETH fonlama: 7,395 kayıt
+  doğrulama BTC 1h: düzeltildi · düzeltilen ay 0 · atılan ay 0 · sıçrama 9
+BTC 1h: 79,991 bar 2017-08-17 04:00:00+00:00 → 2026-10-07 19:00:00+00:00 [binance]
+  doğrulama BTC 5m: düzeltildi · düzeltilen ay 0 · atılan ay 0 · sıçrama 1
+BTC 5m: 210,239 bar 2024-10-07 19:05:00+00:00 → 2026-10-07 19:00:00+00:00 [binance]
+BTC fonlama: 7,395 kayıt
+  doğrulama XAG 1h: düzeltildi · düzeltilen ay 0 · atılan ay 0 · sıçrama 1
+XAG 1h: 89,215 bar 2011-10-09 21:00:00+00:00 → 2026-10-07 18:00:00+00:00 [dukascopy]
+  doğrulama XAG 5m: temiz · düzeltilen ay 0 · atılan ay 0 · sıçrama 0
+XAG 5m: 141,550 bar 2024-10-07 19:05:00+00:00 → 2026-10-07 18:55:00+00:00 [dukascopy]
+  doğrulama NQ 1h: düzeltildi · düzeltilen ay 42 · atılan ay 0 · sıçrama 0
+NQ 1h: 74,987 bar 2012-01-19 16:00:00+00:00 → 2026-10-07 18:00:00+00:00 [dukascopy]
+  doğrulama NQ 5m: temiz · düzeltilen ay 0 · atılan ay 0 · sıçrama 0
+NQ 5m: 136,656 bar 2024-10-07 19:20:00+00:00 → 2026-10-07 18:55:00+00:00 [dukascopy]
+  doğrulama SPX 1h: düzeltildi · düzeltilen ay 0 · atılan ay 0 · sıçrama 1
+SPX 1h: 75,630 bar 2012-01-16 00:00:00+00:00 → 2026-10-07 18:00:00+00:00 [dukascopy]
+  doğrulama SPX 5m: temiz · düzeltilen ay 0 · atılan ay 0 · sıçrama 0
+SPX 5m: 136,741 bar 2024-10-07 19:25:00+00:00 → 2026-10-07 18:55:00+00:00 [dukascopy]
+
+═══ XAU ═══
+  15m: 47,263 bar · 516 giriş × 17 çıkış · meta: tamam · IS -0.235R → OOS -0.040R · 6s
+  30m: 23,634 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.060R → OOS -0.255R · 4s
+  1h: 89,429 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.304R → OOS -0.111R · 7s
+  4h: 23,999 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.071R → OOS +0.133R · 4s
+  1d: 4,666 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.068R → OOS +0.021R · 2s
+  süre 24s
+
+═══ ETH ═══
+  15m: 70,081 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.443R → OOS +0.031R · 6s
+  30m: 35,041 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.648R → OOS -0.226R · 5s
+  1h: 79,995 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.196R → OOS -0.086R · 6s
+  4h: 20,016 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.814R → OOS -0.086R · 4s
+  1d: 3,339 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.643R → OOS +0.592R · 2s
+  süre 23s
+
+═══ BTC ═══
+  15m: 70,081 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.281R → OOS -0.332R · 6s
+  30m: 35,041 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.497R → OOS -0.502R · 5s
+  1h: 79,991 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.476R → OOS -0.327R · 6s
+  4h: 20,016 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.809R → OOS +0.358R · 4s
+  1d: 3,339 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.725R → OOS +0.565R · 2s
+  süre 24s
+
+═══ XAG ═══
+  15m: 47,264 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.021R → OOS -0.204R · 5s
+  30m: 23,635 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.006R → OOS -0.279R · 4s
+  1h: 89,215 bar · 516 giriş × 17 çıkış · meta: tamam · IS -0.187R → OOS -0.181R · 6s
+  4h: 23,997 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.715R → OOS -0.404R · 4s
+  1d: 4,665 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.195R → OOS -0.123R · 2s
+  süre 22s
+
+═══ NQ ═══
+  15m: 45,596 bar · 516 giriş × 17 çıkış · meta: tamam · IS -0.442R → OOS -0.794R · 5s
+  30m: 23,051 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.012R → OOS -1.112R · 4s
+  1h: 74,987 bar · 516 giriş × 17 çıkış · meta: tamam · IS -0.242R → OOS -0.324R · 6s
+  4h: 21,272 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.342R → OOS -0.244R · 4s
+  1d: 4,301 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.300R → OOS -0.016R · 2s
+  süre 22s
+
+═══ SPX ═══
+  15m: 45,602 bar · 516 giriş × 17 çıkış · meta: tamam · IS -0.923R → OOS -0.819R · 5s
+  30m: 23,055 bar · 516 giriş × 17 çıkış · meta: tamam · IS -0.451R → OOS -0.513R · 4s
+  1h: 75,630 bar · 516 giriş × 17 çıkış · meta: tamam · IS -0.396R → OOS -0.484R · 6s
+  4h: 21,521 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.075R → OOS -0.196R · 4s
+  1d: 4,313 bar · 516 giriş × 17 çıkış · meta: tamam · IS +0.177R → OOS -0.211R · 2s
+  süre 23s
+
+═══ FİNALİST AŞAMASI: 54 aday ═══
+  XAU 4h DONCH · Donchian 20 · EMA200 trend | TP1>BE_3R | long → ✗ ✗ · · ✗ ✓  
+  SPX 4h RSI2 · RSI(2) 10/90 · EMA200 trend | SABIT_3R | long → ✗ ✗ · · ✗ ✓  
+  ETH 4h DONCH · Donchian 20 · hacim şoku | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  NQ 1h META · gradient boosting · tüm adaylar · üst %35 | IZ_SUREN_2.5ATR | long → ✗ ✗ · · ✗ ✓  
+  XAU 1h SQZ · BB-Keltner sıkışma çözülmesi · filtresiz | IZ_SUREN_2.5ATR | both → ✗ ✗ · · ✗ ✓  
+  NQ 1h REJIM · anahtar (ikisi) · Stoch · filtresiz | IZ_SUREN_2.5ATR | long → ✗ ✗ · · ✗ ✓  
+  ETH 30m OSC · Stoch · dinamik · volatilite şoku+onay mumu + MACD yön 1s | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  ETH 30m OSC · Stoch · dinamik · volatilite şoku + MACD yön 1s | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  ETH 30m OSC · Stoch · dinamik · hacim şoku+volatilite şoku + MACD yön 1s | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  ETH 30m OSC · Stoch · dinamik · hacim şoku + MACD yön 1s | IZ_SUREN_2.5ATR | short → ✗ ✓ · · ✓ ✓  
+  ETH 30m OSC · RSI+Stoch+WaveTrend · dinamik · onay mumu + MACD yön | SABIT_4R | short → ✗ ✓ · · ✓ ✓  
+  ETH 30m OSC · WaveTrend · dinamik · volatilite şoku+onay mumu + MACD yön | GENIS_%50@1R>BE_3R | short → ✗ ✗ · · ✓ ✓  
+  ETH 1h DONCH · Donchian 55 · sıkışma sonrası | GENIS_%50@1R>BE_3R | both → ✗ ✓ · · ✗ ✓  
+  ETH 1h DONCH · Donchian 55 · hacim şoku | TP0.5>BE_3R | long → ✗ ✓ · · ✓ ✓  
+  ETH 1h DONCH · Donchian 55 · hacim şoku + MACD yön | GENIS_%50@1R>BE_3R | both → ✗ ✓ · · ✓ ✓  
+  ETH 1h DONCH · Donchian 55 · hacim şoku + MACD yön 1s | GENIS_%50@1R>BE_3R | both → ✗ ✓ · · ✓ ✓  
+  ETH 1h RSI2 · RSI(2) 10/90 · EMA200 trend + MACD yön | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  ETH 1h RSI2 · RSI(2) 10/90 · EMA200 trend + MACD yön 1s | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  ETH 4h DONCH · Donchian 20 · sıkışma sonrası + MACD yön 1s | TP1.5>BE_4R | long → ✗ ✓ · · ✓ ✓  
+  ETH 4h DONCH · Donchian 20 · hacim şoku | %50@1R>BE_4R | long → ✗ ✓ · · ✓ ✓  
+  ETH 4h DONCH · Donchian 20 · hacim şoku + MACD yön | %50@1R>BE_4R | both → ✗ ✓ · · ✓ ✓  
+  ETH 4h DONCH · Donchian 55 · sıkışma sonrası + MACD yön 1s | SABIT_2.5R | long → ✗ ✗ · · ✓ ✓  
+  ETH 4h DONCH · Donchian 20 · sıkışma sonrası + MACD yön | TP1>BE_3R_ERKEN | both → ✗ ✓ · · ✓ ✓  
+  ETH 4h DONCH · Donchian 55 · sıkışma sonrası | TP1.5>BE_4R | long → ✗ ✓ · · ✓ ✓  
+  ETH 1d MACDYON · yön + histogram dönüşü (1s eşdeğeri) | SABIT_4R | both → ✗ ✓ · · ✓ ✓  
+  ETH 1d DONCH · Donchian 20 · filtresiz | SABIT_2.5R | long → ✗ ✗ · · ✓ ✓  
+  ETH 1d MACDYON · yön + EMA20'ye geri çekilme (1s eşdeğeri) | GENIS_%50@1R>BE_3R | long → ✗ ✗ · · ✓ ✓  
+  ETH 1d MACDYON · yön + hızlı MACD(12,26,9) kesişimi (1s eşdeğeri) | TP0.5>BE_3R | both → ✗ ✗ · · ✓ ✓  
+  BTC 30m OSC · Stoch · sabit · volatilite şoku+EMA200 trend + MACD yön 1s | GENIS_%50@1R>BE_3R | short → ✗ ✗ · · ✓ ✓  
+  BTC 1h DONCH · Donchian 55 · sıkışma sonrası + MACD yön | SABIT_4R | long → ✗ ✓ · · ✓ ✓  
+  BTC 1h DONCH · Donchian 55 · sıkışma sonrası + MACD yön 1s | SABIT_4R | long → ✗ ✓ · · ✓ ✓  
+  BTC 1h DONCH · Donchian 55 · sıkışma sonrası | IZ_SUREN_2.5ATR | long → ✗ ✓ · · ✓ ✓  
+  BTC 1h SQZ · BB-Keltner sıkışma çözülmesi · hacim şoku + MACD yön | GENIS_%50@1R>BE_3R | long → ✗ ✓ · · ✓ ✓  
+  BTC 1h SQZ · BB-Keltner sıkışma çözülmesi · hacim şoku + MACD yön 1s | GENIS_%50@1R>BE_3R | long → ✗ ✓ · · ✓ ✓  
+  BTC 1h DONCH · Donchian 20 · sıkışma sonrası | IZ_SUREN_2.5ATR | long → ✗ ✓ · · ✓ ✓  
+  BTC 4h DONCH · Donchian 20 · sıkışma sonrası | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  BTC 4h DONCH · Donchian 20 · EMA200 trend | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  BTC 4h DONCH · Donchian 55 · hacim şoku + MACD yön 1s | %50@1R>BE_4R | short → ✗ ✗ · · ✓ ✓  
+  BTC 4h DONCH · Donchian 55 · hacim şoku | TP0.5>BE_3R | short → ✗ ✓ · · ✓ ✓  
+  BTC 4h DONCH · Donchian 20 · hacim şoku | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✓ ✓  
+  BTC 4h META · gradient boosting · tüm adaylar · üst %35 | IZ_SUREN_2.5ATR | long → ✗ ✓ · · ✓ ✓  
+  BTC 1d MACDYON · yön + hızlı MACD(12,26,9) kesişimi (1s eşdeğeri) | SABIT_2.5R | both → ✗ ✗ · · ✓ ✓  
+  BTC 1d MACDYON · yön + RSI(2) aşırı (1s eşdeğeri) | SABIT_4R | long → ✗ ✗ · · ✓ ✓  
+  BTC 1d RSI2 · RSI(2) 10/90 · filtresiz | IZ_SUREN_2.5ATR | long → ✗ ✓ · · ✗ ✓  
+  BTC 1d RSI2 · RSI(2) 10/90 · filtresiz + MACD yön 1s | SABIT_4R | long → ✗ ✗ · · ✓ ✓  
+  BTC 1d META · gradient boosting · tüm adaylar · üst %35 | TP0.5>BE_3R | long → ✗ ✓ · · ✓ ✓  
+  BTC 1d MACDYON · yön + EMA20'ye geri çekilme (1s eşdeğeri) | IZ_SUREN_2.5ATR | both → ✗ ✓ · · ✗ ✓  
+  XAG 4h OSC · WaveTrend · dinamik · volatilite şoku+onay mumu + MACD yön 1s | SABIT_4R | both → ✗ ✗ · · ✗ ✓  
+  XAG 1d MA · zaman serisi momentumu 24 bar | TP1>BE_2R | short → ✗ ✓ · · ✗ ✓  
+  NQ 4h MA · EMA 20/50 kesişimi + MACD yön | IZ_SUREN_2.5ATR | long → ✗ ✓ · · ✗ ✓  
+  NQ 4h MA · EMA 20/50 kesişimi | TP0.5>BE_3R | long → ✗ ✓ · · ✓ ✓  
+  NQ 4h OSC · Stoch · sabit · volatilite şoku + MACD yön 1s | TP0.5>BE_3R | short → ✗ ✓ · · ✗ ✓  
+  NQ 1d MACDYON · yön + EMA20'ye geri çekilme (bar) | GENIS_%50@1R>BE_3R | long → ✗ ✗ · · ✓ ✓  
+  NQ 1d RSI2 · RSI(2) 10/90 · EMA200 trend | GENIS_%50@1R>BE_3R | long → ✗ ✓ · · ✗ ✓  
+  finalist: 0 · süre 13s
+Finalist: 0 · önerilen risk: None
+
+Rapor: reports/macd/RAPOR.md
