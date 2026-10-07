@@ -1,0 +1,19 @@
+═══ KRİPTO GÜNLÜK MACD · 2026-10-07 19:59 UTC · Bitget maliyeti (taker 6 bps) ═══
+  BTCUSDT: 3338 gün · 2017-08 → 2026-10
+  ETHUSDT: 3338 gün · 2017-08 → 2026-10
+  BNBUSDT: 3257 gün · 2017-11 → 2026-10
+  XRPUSDT: 3078 gün · 2018-05 → 2026-10
+  ADAUSDT: 3095 gün · 2018-04 → 2026-10
+  SOLUSDT: 2248 gün · 2020-08 → 2026-10
+  DOGEUSDT: 2651 gün · 2019-07 → 2026-10
+  LTCUSDT: 3220 gün · 2017-12 → 2026-10
+  LINKUSDT: 2821 gün · 2019-01 → 2026-10
+  TRXUSDT: 3040 gün · 2018-06 → 2026-10
+  DOTUSDT: 2241 gün · 2020-08 → 2026-10
+  AVAXUSDT: 2206 gün · 2020-09 → 2026-10
+  BCHUSDT: 2505 gün · 2019-11 → 2026-10
+  ETCUSDT: 3039 gün · 2018-06 → 2026-10
+  XLMUSDT: 3051 gün · 2018-05 → 2026-10
+  hipotezler: 10 MACD girişi × 6 çıkış × 3 yön = 180
+  BTC uzun geçmiş (yfinance): 4404 gün · 2014-09 → 2026-10
+  IS'te en iyi 10 hipotezden geçen: 8

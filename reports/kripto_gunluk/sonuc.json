@@ -1,0 +1,69 @@
+{
+ "olusturma": "2026-10-07T20:01+00:00",
+ "gecen": [
+  {
+   "giriş": "MACDYON · yön + RSI(2) aşırı (1s eşdeğeri)",
+   "çıkış": "IZ_SUREN_2.5ATR",
+   "yön": "both",
+   "exp": 0.35073721869375646,
+   "oos_exp": 0.17021696549657253,
+   "n": 1386
+  },
+  {
+   "giriş": "MACDYON · yön + EMA20'ye geri çekilme (1s eşdeğeri)",
+   "çıkış": "IZ_SUREN_2.5ATR",
+   "yön": "both",
+   "exp": 0.3330139958092191,
+   "oos_exp": 0.20512120985027793,
+   "n": 1602
+  },
+  {
+   "giriş": "MACDYON · yön + RSI(2) aşırı (1s eşdeğeri)",
+   "çıkış": "SABIT_4R",
+   "yön": "both",
+   "exp": 0.2856021984906525,
+   "oos_exp": 0.20493637366270814,
+   "n": 1315
+  },
+  {
+   "giriş": "MACDYON · yön + RSI(2) aşırı (1s eşdeğeri)",
+   "çıkış": "TP0.5>BE_3R",
+   "yön": "both",
+   "exp": 0.1647030649141457,
+   "oos_exp": 0.13096844675883756,
+   "n": 1765
+  },
+  {
+   "giriş": "MACDYON · yön + EMA20'ye geri çekilme (1s eşdeğeri)",
+   "çıkış": "IZ_SUREN_2.5ATR",
+   "yön": "long",
+   "exp": 0.37911672209794545,
+   "oos_exp": 0.2182950005370944,
+   "n": 1037
+  },
+  {
+   "giriş": "MACDYON · yön + RSI(2) aşırı (1s eşdeğeri)",
+   "çıkış": "%50@1R>BE_4R",
+   "yön": "both",
+   "exp": 0.13322284519662497,
+   "oos_exp": 0.07982079010524398,
+   "n": 1520
+  },
+  {
+   "giriş": "MACDYON · yön + hızlı MACD(12,26,9) kesişimi (1s eşdeğeri)",
+   "çıkış": "IZ_SUREN_2.5ATR",
+   "yön": "long",
+   "exp": 0.6680039727632128,
+   "oos_exp": 0.5476636292461594,
+   "n": 463
+  },
+  {
+   "giriş": "MACDYON · yön + EMA20'ye geri çekilme (1s eşdeğeri)",
+   "çıkış": "TP0.5>BE_3R",
+   "yön": "both",
+   "exp": 0.12337142795361958,
+   "oos_exp": 0.08579042004448673,
+   "n": 2006
+  }
+ ]
+}
