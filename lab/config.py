@@ -157,3 +157,36 @@ N_BLOCKS = 4                  # kararlılık: OOS dahil tüm dönem 4 bloğa bö
 
 OUT_DIR = os.getenv("ATVS_OUT", "reports")
 DATA_DIR = os.getenv("ATVS_DATA", "data")
+
+# ───────────────────────── BITGET GERÇEKÇİ MALİYET (v4) ─────────────────────────
+# Laboratuvarın ilk maliyetleri CFD/spot spread'ine göreydi (XAU 2 bps). Bot Bitget USDT-M vadelide piyasa emriyle
+# işlem yapar: taker ücreti her iki yönde + spread/kayma + fonlama (funding). v4 bütün kararları bu maliyetle verir.
+BITGET_TAKER_BPS = float(os.getenv("ATVS_TAKER_BPS", "6"))        # tek yön taker (standart 0.06%)
+BITGET_SPREAD_BPS = {"XAU": 2.0, "XAG": 4.0, "BTC": 1.0, "ETH": 1.0, "NQ": 3.0, "SPX": 3.0}
+BITGET_FUNDING_BPS_DAY = float(os.getenv("ATVS_FUNDING_BPS_DAY", "3"))   # ≈ 0.01% / 8 saat (tipik); uzun tutulan işlemleri cezalandırır
+
+
+def bitget_cost_bps(asset: str) -> float:
+    """Gidiş-dönüş toplam: 2 × taker + spread/kayma (baz puan)."""
+    return 2 * BITGET_TAKER_BPS + BITGET_SPREAD_BPS.get(asset, 3.0)
+
+
+# ───────────────────────── ENDEKS MODÜLÜ (v4: NQ/QQQ · SPX/SPY) ─────────────────────────
+# Bitget hisse/endeks vadelileri 7/24 fiyatlanır ama ABD piyasası kapalıyken YENİ POZİSYON AÇILAMAZ ve açılışta
+# fiyat boşluğu olabilir. Bu yüzden endeks stratejileri ABD nakit seansına göre kurulur:
+#   günlük mum = New York 09:00–15:00 arası saatlik mumlar · karar anı = 15:00 ET (seans içi, kapanıştan 1 saat önce)
+#   giriş / sinyal çıkışı = 15:00 ET mumunun açılışı · stop borsada (gece/hafta sonu boşluğu doldurulur)
+IDX_ASSETS = ("NQ", "SPX")
+IDX_TZ = "America/New_York"
+IDX_SESSION = (9, 14)                 # günlük mumu oluşturan saatlik mum başlangıçları (ET, dahil)
+IDX_WARMUP = 210                      # gösterge ısınması (gün)
+IDX_STOP_K = (1.5, 2.5, 3.5)          # felaket stopu: k × günlük ATR(14) — 1R
+IDX_TMAX = (5, 10)                    # zaman stopu (işlem günü); trend ailesi için IDX_TMAX_TREND
+IDX_TMAX_TREND = (60, 120)
+IDX_IS_T_MIN = 2.0                    # IS t ≥ bu değer olan ayarlar OOS'a gider (çoklu testi azaltır)
+IDX_POOL_PER_ASSET = 40
+IDX_SUSPECT_WR = 0.92                 # ortalamaya dönüşte yüksek isabet normaldir; veri şüphesi eşiği daha yüksek
+IDX_PICK_PER_ASSET = 3                # portföy testine giden en iyi aday (farklı aile)
+IDX_RISK_GRID = (0.0, 0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02)   # strateji başına işlem riski seçenekleri (0 = kullanma)
+IDX_TARGET_MDD = float(os.getenv("ATVS_TARGET_MDD", "0.15"))  # portföy: %95 olasılıkla aşılmaması istenen düşüş
+IDX_SYMBOL = {"NQ": "QQQ/USDT:USDT", "SPX": "SPY/USDT:USDT"}
