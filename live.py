@@ -28,7 +28,7 @@ from lab import data as D
 from lab import evaluate as EV
 from lab import exits as X
 
-TF_MIN = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}
+TF_MIN = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "1d": 1440}
 DEC = {"XAU": 2, "XAG": 3, "BTC": 1, "ETH": 2, "NQ": 1, "SPX": 1}
 SIDE_TR = {1: "LONG 🟢", -1: "SHORT 🔴"}
 STATE = C.LIVE_STATE_DIR
@@ -213,7 +213,8 @@ def process(fz: dict, ctx: dict, state: dict) -> None:
         except KeyError:
             tg(f"⚠️ {fid}: açık pozisyonun sinyal mumu veride bulunamadı ({pos['signal_time']}). Pozisyon takipten çıkarıldı.")
             return None
-        r = X.simulate_one(o[: j + 1], h[: j + 1], l[: j + 1], c[: j + 1], pos["atr"], i, pos["side"], cfg, cost, H)
+        r = X.simulate_one(o[: j + 1], h[: j + 1], l[: j + 1], c[: j + 1], pos["atr"], i, pos["side"], cfg, cost, H,
+                           C.fund_bps_bar(TF_MIN[fz["tf"]]))
         if r["entry"] is not None and "entry" not in pos["sent"]:
             pos["entry"] = r["entry"]
             pos["entry_time"] = str(idx[i + 1])

@@ -80,10 +80,10 @@ def t1():
     o, h, l, c = (df[k].to_numpy() for k in ("open", "high", "low", "close"))
     bad = tot = 0
     for nm, cfg in C.EXITS.items():
-        v = X.simulate(df, atr, 5.0, cfg)
+        v = X.simulate(df, atr, 5.0, cfg, fund_bps_bar=0.4)
         for side in (1, -1):
             for i in rng.choice(np.flatnonzero(v["valid"]), 60, replace=False):
-                r = X.simulate_one(o, h, l, c, atr.iloc[i], i, side, cfg, 5.0)
+                r = X.simulate_one(o, h, l, c, atr.iloc[i], i, side, cfg, 5.0, fund_bps_bar=0.4)
                 tot += 1
                 if not (r["status"] == "closed" and abs(r["R"] - v[side][i]) < 1e-9 and r["exit_k"] == v[(side, "k")][i]):
                     bad += 1

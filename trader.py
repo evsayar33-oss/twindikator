@@ -44,7 +44,7 @@ from lab import index_lab as IL  # noqa: E402
 STATE_FILE = os.path.join(C.LIVE_STATE_DIR, "trader_state.json")
 TRADES_FILE = os.path.join(C.LIVE_STATE_DIR, "trader_trades.csv")
 FIN_FILE = os.path.join(C.LIVE_STATE_DIR, "finalists.json")
-TF_MIN = {"1h": 60, "4h": 240}
+TF_MIN = {"1h": 60, "4h": 240, "1d": 1440}
 MAX_ENTRY_DELAY = pd.Timedelta(hours=2)
 IDX_MAX_DELAY = pd.Timedelta(minutes=50)     # endeks: 15:00 ET kararı en geç 15:50'de uygulanır (16:00 seans kapanışı)
 

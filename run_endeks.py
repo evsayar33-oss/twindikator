@@ -67,21 +67,16 @@ def base_finalists(h_by_asset: dict, fin_meta: dict) -> list[dict]:
             continue
         df = D.resample(h_by_asset[a], C.TIMEFRAMES[fz["tf"]]["rule"]) if fz["tf"] != "1h" else h_by_asset[a]
         res = {}
-        for label, cost in (("eski", C.ASSETS[a]["cost_bps"]), ("bitget", C.bitget_cost_bps(a))):
-            old = C.ASSETS[a]["cost_bps"]
+        for label, cost in (("eski", C.ASSETS[a]["cost_bps_eski"]), ("bitget", C.bitget_cost_bps(a))):
+            old, old_model = C.ASSETS[a]["cost_bps"], C.COST_MODEL
             C.ASSETS[a]["cost_bps"] = cost
+            C.COST_MODEL = "bitget" if label == "bitget" else "eski"      # fonlama yalnızca Bitget senaryosunda
             try:
                 dc = FN.DataCtx(a, fz["tf"], df, None, "", None)
                 r = FN.run_spec(dc, fz["entry"], fz["exit_cfg"], fz["scope"])
             finally:
-                C.ASSETS[a]["cost_bps"] = old
+                C.ASSETS[a]["cost_bps"], C.COST_MODEL = old, old_model
             t = r["trades"].copy() if r else pd.DataFrame()
-            if label == "bitget" and len(t):                     # fonlama: tutulan gün × günlük oran (R cinsinden)
-                f, _, _ = dc.book(FN.family_of(fz["entry"]), {})
-                e = df["open"].to_numpy()[t["bar"].to_numpy() + 1]
-                dist = fz["exit_cfg"]["sl_atr"] * f["atr"].to_numpy()[t["bar"].to_numpy()]
-                days = (t["exit_time"] - t["entry_time"]).dt.total_seconds().to_numpy() / 86400
-                t["R"] = t["R"] - (C.BITGET_FUNDING_BPS_DAY / 1e4) * days * e / dist
             res[label] = t
         tb = res["bitget"]
         st_old, st_new = FN.trade_stats(res["eski"]["R"]), FN.trade_stats(tb["R"])

@@ -25,7 +25,7 @@ from lab import finalists as FN
 import traceback
 
 SC_TR = {"both": "iki yön", "long": "LONG", "short": "SHORT"}
-TF_MIN = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}
+TF_MIN = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "1d": 1440}
 
 
 def pct(x):
