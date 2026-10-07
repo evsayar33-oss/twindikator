@@ -1,0 +1,69 @@
+name: ATVS Endeks (3. varlık araştırması)
+
+on:
+  workflow_dispatch:
+    inputs:
+      hedef:
+        description: "Portföy düşüş hedefi (%95 olasılıkla aşılmayacak maks. düşüş, ör. 0.15 = %15)"
+        default: "0.15"
+      taker:
+        description: "Bitget taker ücreti (tek yön, baz puan; standart 6 = %0.06)"
+        default: "6"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atvs-repo-write
+  cancel-in-progress: false
+
+jobs:
+  endeks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONUNBUFFERED: "1"
+      ATVS_TAKER_BPS: ${{ github.event.inputs.taker || '6' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Öz-test (hızlı)
+        run: python selftest.py --fast
+
+      - name: Veri önbelleği (araştırma iş akışıyla ortak)
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: atvs-data-${{ github.run_id }}
+          restore-keys: atvs-data-
+
+      - name: Endeks araştırması + portföy katkısı
+        run: |
+          set -o pipefail
+          mkdir -p reports state
+          python run_endeks.py --hedef "${{ github.event.inputs.hedef || '0.15' }}" 2>&1 | tee reports/endeks_calisma.txt
+
+      - name: Raporu depoya yaz
+        if: always()
+        run: |
+          git config user.name "atvs-lab-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reports/ENDEKS_RAPOR.md reports/endeks_* state/endeks_finalist.json || true
+          git commit -m "ATVS endeks araştırması $(date -u +%Y-%m-%d)" || { echo "değişiklik yok"; exit 0; }
+          for i in 1 2 3 4 5; do git pull --rebase --autostash && git push && break; sleep $((i*10)); done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atvs-endeks-rapor
+          path: |
+            reports/ENDEKS_RAPOR.md
+            reports/endeks_*
+            selftest_sonuc.txt
