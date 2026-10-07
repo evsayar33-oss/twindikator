@@ -103,6 +103,14 @@ def load_backtest():
     b = _raw(MAIN, "state/finalists.json") or _raw(MAIN, "reports/finalists.json")
     if b:
         out["fin"] = json.loads(b)
+    b = _raw(MAIN, "reports/endeks_kasa.csv")
+    if b:
+        k = pd.read_csv(io.BytesIO(b), index_col=0)
+        k.index = pd.to_datetime(k.index)
+        out["endeks_kasa"] = k
+    b = _raw(MAIN, "reports/endeks_finalist.json")
+    if b:
+        out["endeks"] = json.loads(b)
     return out
 
 
@@ -409,6 +417,35 @@ with tab_bt:
             tb = pd.DataFrame(rows).T
             st.dataframe(tb.style.format({c: ("{:.0%}" if c == "Kazanma oranı" else ("{:.0f}" if c == "İşlem" else "{:+.3f}"))
                                           for c in tb.columns}), use_container_width=True)
+
+# ── 3. varlık senaryoları (Bitget gerçek maliyetiyle)
+with tab_bt:
+    if "endeks_kasa" in bt:
+        st.markdown("---")
+        st.subheader("3. varlık senaryoları — Bitget gerçek maliyetiyle")
+        k = bt["endeks_kasa"].ffill().dropna(how="all")
+        pal = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#9085e9", "#008300"]
+        fig = go.Figure()
+        for i, c in enumerate(k.columns[:7]):
+            s_ = k[c].dropna()
+            fig.add_trace(go.Scatter(x=s_.index, y=100 * s_ / s_.iloc[0], name=c,
+                                     line=dict(width=2.6 if i == 0 else 1.6, color=pal[i]), hovertemplate="%{y:.1f}"))
+        fig.update_layout(**LAYOUT, title="Portföy öz sermayesi (başlangıç = 100, USD)", yaxis_title="Başlangıç = 100")
+        fig.update_yaxes(type="log")
+        st.plotly_chart(fig, use_container_width=True)
+        en = bt.get("endeks", {})
+        fl = en.get("finalistler", [])
+        if fl:
+            f0 = fl[0]
+            st.success(f"Öneri: **{f0['id']}** — işlem başına risk %{100 * f0['risk']:.2g} · portföy CAGR %{100 * f0['portfoy']['cagr']:.1f} · "
+                       f"MC %95 düşüş %{100 * f0['portfoy']['p95_mdd']:.1f}")
+            st.markdown(f0["rules"])
+        elif en:
+            st.info("Araştırma 3. varlık önermedi (ayrıntı: reports/ENDEKS_RAPOR.md).")
+        if en.get("temel"):
+            st.dataframe(pd.DataFrame(en["temel"]).rename(columns={"eski_exp": "eski maliyetle R", "bitget_exp": "Bitget maliyetiyle R",
+                                                                   "bitget_oos_exp": "Bitget OOS R", "n": "işlem"}).round(3),
+                         use_container_width=True, hide_index=True)
 
 # ── Bot günlüğü
 with tab_log:
