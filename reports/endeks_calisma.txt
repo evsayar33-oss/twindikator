@@ -1,0 +1,23 @@
+═══ ATVS v4 ENDEKS ARAŞTIRMASI · 2026-10-07 18:04 UTC · hedef düşüş %15 ═══
+Bitget maliyeti: taker 6.0 bps × 2 + spread · fonlama 3.0 bps/gün
+
+── Veri
+  ETH: 79995 saatlik mum · 2017-08 → 2026-10 · kaynak binance · doğrulama düzeltildi
+  NQ: 74986 saatlik mum · 2012-01 → 2026-10 · kaynak dukascopy · doğrulama düzeltildi
+  SPX: 75629 saatlik mum · 2012-01 → 2026-10 · kaynak dukascopy · doğrulama düzeltildi
+  XAU: 89429 saatlik mum · 2011-10 → 2026-10 · kaynak dukascopy · doğrulama temiz
+
+── 1) Mevcut finalistler — Bitget gerçek maliyetiyle
+  F1_XAU_4h_DONCH: eski maliyet +0.317R → Bitget +0.002R (OOS +0.090R, 434 işlem)
+  F2_ETH_4h_DONCH: eski maliyet +0.557R → Bitget +0.508R (OOS +0.725R, 379 işlem)
+
+── 2) Endeks taraması
+  NQ: 3640 seans günü (2012-01 → 2026-10) · 618 ayar · IS t≥2.0: 3 · 4s
+  SPX: 3650 seans günü (2012-01 → 2026-10) · 618 ayar · IS t≥2.0: 0 · 4s
+  kapıların hepsini geçen: 0 / 3 aday
+
+── 3) Portföy katkısı (Monte Carlo, hedef düşüş içinde en yüksek CAGR)
+
+ÖNERİ: 3. varlık eklenmesin (hiçbir aday portföyü hedef içinde iyileştirmedi)
+
+süre 459s
