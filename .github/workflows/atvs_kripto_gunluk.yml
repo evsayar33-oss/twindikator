@@ -1,0 +1,54 @@
+name: ATVS Kripto Günlük MACD (15 coin, havuzlanmış)
+
+on:
+  workflow_dispatch:
+    inputs:
+      taker:
+        description: "Bitget taker ücreti (tek yön, baz puan; 6 = piyasa emri, 2 = limitli emir senaryosu)"
+        default: "6"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atvs-repo-write
+  cancel-in-progress: false
+
+jobs:
+  kripto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+      ATVS_TAKER_BPS: ${{ github.event.inputs.taker || '6' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Veri önbelleği (ortak)
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: atvs-data-${{ github.run_id }}
+          restore-keys: atvs-data-
+      - name: Kripto günlük MACD yeniden sınama
+        run: |
+          set -o pipefail
+          mkdir -p reports/kripto_gunluk
+          python run_kripto_gunluk.py 2>&1 | tee reports/kripto_gunluk/calisma.txt
+      - name: Raporu depoya yaz
+        if: always()
+        run: |
+          git config user.name "atvs-lab-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reports/kripto_gunluk || true
+          git commit -m "ATVS kripto günlük $(date -u +%Y-%m-%d)" || { echo "değişiklik yok"; exit 0; }
+          for i in 1 2 3 4 5; do git pull --rebase --autostash && git push && break; sleep $((i*10)); done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atvs-kripto-gunluk-rapor
+          path: reports/kripto_gunluk
