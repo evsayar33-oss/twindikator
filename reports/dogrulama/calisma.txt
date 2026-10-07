@@ -1,0 +1,43 @@
+═══ ATVS v4.3 DOĞRULAMA · 2026-10-07 20:24 UTC · Bitget maliyeti (taker 6 bps) ═══
+  BTCUSDT: 3338 gün · 2017-08 → 2026-10
+  ETHUSDT: 3338 gün · 2017-08 → 2026-10
+  BNBUSDT: 3257 gün · 2017-11 → 2026-10
+  XRPUSDT: 3078 gün · 2018-05 → 2026-10
+  ADAUSDT: 3095 gün · 2018-04 → 2026-10
+  SOLUSDT: 2248 gün · 2020-08 → 2026-10
+  DOGEUSDT: 2651 gün · 2019-07 → 2026-10
+  LTCUSDT: 3220 gün · 2017-12 → 2026-10
+  LINKUSDT: 2821 gün · 2019-01 → 2026-10
+  TRXUSDT: 3040 gün · 2018-06 → 2026-10
+  DOTUSDT: 2241 gün · 2020-08 → 2026-10
+  AVAXUSDT: 2206 gün · 2020-09 → 2026-10
+  BCHUSDT: 2505 gün · 2019-11 → 2026-10
+  ETCUSDT: 3039 gün · 2018-06 → 2026-10
+  XLMUSDT: 3051 gün · 2018-05 → 2026-10
+  LUNAUSDT: 2221 gün · 2020-08 → 2026-10 · LİSTEDEN ÇIKMIŞ
+  FTTUSDT: 2173 gün · 2019-12 → 2026-10 · LİSTEDEN ÇIKMIŞ
+  SRMUSDT: 840 gün · 2020-08 → 2022-11 · LİSTEDEN ÇIKMIŞ
+  WAVESUSDT: 1978 gün · 2019-01 → 2024-06 · LİSTEDEN ÇIKMIŞ
+  XEMUSDT: 1302 gün · 2020-11 → 2024-06 · LİSTEDEN ÇIKMIŞ
+  ANCUSDT: 337 gün · 2022-01 → 2022-12 · LİSTEDEN ÇIKMIŞ
+  MIRUSDT: 618 gün · 2021-04 → 2022-12 · LİSTEDEN ÇIKMIŞ
+  BTSUSDT: 1401 gün · 2020-02 → 2023-12 · LİSTEDEN ÇIKMIŞ
+  kural motoru lab ile birebir: evet
+  D1 EMA: tüm +0.333R n=1602 t=5.37 · haftalık küme t=3.76 · OOS haftalık t=1.87
+  D1 X: tüm +0.668R n=463 t=4.92 · haftalık küme t=2.99 · OOS haftalık t=2.18
+  D2 EMA: batan coinlerde +0.186R (n=373) · hepsi birlikte +0.305R
+  D2 X: batan coinlerde +0.724R (n=126) · hepsi birlikte +0.680R
+  D3 EMA: gerçek +0.333R · rastgele yön ort +0.146R · %95 +0.221R · p=0.000
+  D3 X: gerçek +0.668R · rastgele yön ort +0.271R · %95 +0.382R · p=0.000
+  D4 EMA: komşu ayarların %100'ı pozitif (OOS %100)
+  D4 X: komşu ayarların %100'ı pozitif (OOS %100)
+  D5 XAU: EMA -0.371R (n=191) · X +0.491R (n=50)
+  D5 XAG: EMA -0.035R (n=193) · X +0.235R (n=46)
+  D5 NQ: EMA -0.340R (n=187) · X -0.337R (n=41)
+  D5 SPX: EMA -0.541R (n=185) · X -0.457R (n=46)
+    [eksik] XAUUSD tick 2026-10-07: 1/20 parça indirilemedi
+  F1_XAU_4h_DONCH: eski maliyet +0.317R → Bitget +0.016R (OOS +0.103R, 434 işlem)
+  F2_ETH_4h_DONCH: eski maliyet +0.557R → Bitget +0.508R (OOS +0.725R, 379 işlem)
+  HÜKÜM EMA: GEÇTİ
+  HÜKÜM X: GEÇTİ
+süre 975s

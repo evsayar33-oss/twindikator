@@ -1,0 +1,21 @@
+{
+ "olusturma": "2026-10-07T20:41+00:00",
+ "sentetik": false,
+ "hukum": {
+  "EMA": true,
+  "X": true
+ },
+ "portfoy": {
+  "max_acik": 4,
+  "riskler": {
+   "EMA": 0.0,
+   "X": 0.005,
+   "F1_XAU_4h_DONCH": 0.0,
+   "F2_ETH_4h_DONCH": 0.01
+  },
+  "cagr": 0.2992359765405932,
+  "p95_mdd": 0.14663533338069457,
+  "mdd": 0.1266494357303949,
+  "oos_cagr": 0.3375440430822887
+ }
+}
