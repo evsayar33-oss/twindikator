@@ -55,12 +55,12 @@ def build_context(df: pd.DataFrame, cost_bps: float, tf_min: int, partner: pd.Se
     f = FE.compute(df)
     want_meta = C.META_ON and (families is None or "META" in families)
     book = ST.build_all(df, f, tf_min, is_mask, partner, pname, funding, families=None if want_meta else families)
-    sims = X.simulate_all(df, f["atr"], cost_bps) if all_exits else {}
+    sims = X.simulate_all(df, f["atr"], cost_bps, C.fund_bps_bar(tf_min)) if all_exits else {}
     meta_sim = sims.get(C.META_EXIT) if sims else None
     meta_msg = None
     if want_meta:
         if meta_sim is None:
-            meta_sim = X.simulate(df, f["atr"], cost_bps, C.EXITS[C.META_EXIT])
+            meta_sim = X.simulate(df, f["atr"], cost_bps, C.EXITS[C.META_EXIT], fund_bps_bar=C.fund_bps_bar(tf_min))
         meta_msg = M.add_meta(book, f, df.index, meta_sim, meta_sim["valid"], split)
     if families is not None:
         book.items = {k: v for k, v in book.items.items() if v[0] in families}

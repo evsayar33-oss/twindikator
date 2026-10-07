@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from . import config as C
+from . import features as FT
 
 OSC = ("R", "S", "W")
 OSC_NAME = {"R": "RSI", "S": "Stoch", "W": "WaveTrend"}
@@ -297,6 +298,30 @@ def fam_funding(book: Book, f: dict, funding: pd.Series | None):
         book.add("FUNDING", f"fonlama uç değeri ±{t}σ (kalabalığa karşı)", cross_dn(zz, -t), cross_up(zz, t), 12)
 
 
+def fam_macdyon(book: Book, f: dict):
+    """Kullanıcının MACD yön stratejisi ve kombinasyonları (yön = yavaş MACD > sinyal)."""
+    c, h, l = f["c"], f["h"], f["l"]
+    for key, lab in (("macd_dir", "bar"), ("macd_dir_1s", "1s eşdeğeri")):
+        d = f[key]
+        up, dn = _a(d) > 0, _a(d) < 0
+        pu, pd_ = np.r_[False, up[:-1]], np.r_[False, dn[:-1]]
+        book.add("MACDYON", f"yön dönüşü ({lab})", up & ~pu, dn & ~pd_, 1)
+        fm = FT.ema(c, 12) - FT.ema(c, 26)
+        fs = FT.ema(fm, 9)
+        xu, xd = cross_up(_a(fm - fs), 0.0), cross_dn(_a(fm - fs), 0.0)
+        book.add("MACDYON", f"yön + hızlı MACD(12,26,9) kesişimi ({lab})", up & xu, dn & xd, 3)
+        hist = _a(fm - fs)
+        hp, hpp = _prev(hist), _prev(_prev(hist))
+        with np.errstate(invalid="ignore"):
+            book.add("MACDYON", f"yön + histogram dönüşü ({lab})", up & (hist < 0) & (hist > hp) & (hp <= hpp),
+                     dn & (hist > 0) & (hist < hp) & (hp >= hpp), 3)
+            e20 = _a(FT.ema(c, 20))
+            book.add("MACDYON", f"yön + EMA20'ye geri çekilme ({lab})", up & (_a(l) <= e20) & (_a(c) > e20),
+                     dn & (_a(h) >= e20) & (_a(c) < e20), 6)
+            r2 = _a(f["rsi2"])
+            book.add("MACDYON", f"yön + RSI(2) aşırı ({lab})", up & (r2 < 10), dn & (r2 > 90), 3)
+
+
 def fam_filters(book: Book, f: dict, df: pd.DataFrame):
     """Mevcut girişlere tek tek filtre ekleyerek daha seçici yeni girişler üretir (aile adı korunur)."""
     c, o, h, l = _a(f["c"]), _a(f["o"]), _a(f["h"]), _a(f["l"])
@@ -316,7 +341,11 @@ def fam_filters(book: Book, f: dict, df: pd.DataFrame):
         "güçlü mum": (body >= C.BODY_MIN, body <= -C.BODY_MIN),
         "seans": (sess, sess),
         "hacim": (volS, volS),
+        "MACD yön": (_a(f["macd_dir"]) > 0, _a(f["macd_dir"]) < 0),
+        "MACD yön 1s": (_a(f["macd_dir_1s"]) > 0, _a(f["macd_dir_1s"]) < 0),
     }
+    if C.FILTERS_ON:
+        flt = {k: v for k, v in flt.items() if k in C.FILTERS_ON}
     base = [(k, v) for k, v in book.items.items() if v[0] in C.FILTER_BASE_FAMILIES]
     for name, (fam, L, S) in base:
         for fn, (fl, fs) in flt.items():
@@ -358,7 +387,11 @@ def build_all(df: pd.DataFrame, f: dict, tf_min: int, is_mask: np.ndarray, partn
         fam_pair(book, f, partner, pname)
     if on("FUNDING"):
         fam_funding(book, f, funding)
+    if on("MACDYON"):
+        fam_macdyon(book, f)
     fam_filters(book, f, df)
+    if C.FILTERED_ONLY:
+        book.items = {k: v for k, v in book.items.items() if v[0] not in C.FILTERED_ONLY or " + " in k}
     if want is not None:
         book.items = {k: v for k, v in book.items.items() if v[0] in want}
     return book

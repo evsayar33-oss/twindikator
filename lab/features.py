@@ -109,6 +109,15 @@ def compute(df: pd.DataFrame) -> dict:
     dclose = c.resample("1D").last().dropna()
     dtrend = np.sign(dclose - ema(dclose, C.HTF_EMA)).shift(1)
     f["htf"] = pd.Series(dtrend.reindex(c.index.floor("D")).to_numpy(), index=c.index)
+    # MACD YÖN (kullanıcının stratejisi): MACD > sinyal → +1 (LONG yönü), < → −1. İki mod:
+    #   "bar"  : ayarlar bu ZD'nin mumlarına aynen uygulanır (TradingView'da grafiği değiştirmek gibi)
+    #   "1s"   : ayarlar 1 saatlik grafiğin süresine ölçeklenir (4h'te 675/4 ≈ 169 …) — aynı zaman ufku
+    tf_min = float(np.median(np.diff(c.index.values.astype("datetime64[s]").astype(np.int64)))) / 60 if len(c) > 2 else 60.0
+    for key, scale in (("macd_dir", 1.0), ("macd_dir_1s", C.MACD_DIR_BASE_MIN / max(tf_min, 1.0))):
+        nf, ns, nsig = (max(2, int(round(x * scale))) for x in C.MACD_DIR)
+        m = ema(c, nf) - ema(c, ns)
+        sg = ema(m, nsig)
+        f[key] = np.sign(m - sg)
     f["ret"] = np.log(c).diff()
     f["ret_z"] = f["ret"] / f["ret"].rolling(100, min_periods=50).std().shift(1)
     return f

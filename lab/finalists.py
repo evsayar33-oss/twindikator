@@ -27,7 +27,7 @@ from . import config as C
 from . import evaluate as EV
 from . import exits as X
 
-TF_MIN = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240}
+TF_MIN = {"5m": 5, "15m": 15, "30m": 30, "1h": 60, "4h": 240, "1d": 1440}
 SC_TR = {"both": "iki yön", "long": "yalnız LONG", "short": "yalnız SHORT"}
 
 
@@ -108,7 +108,7 @@ def run_spec(dc: DataCtx, entry: str, exit_cfg: dict, scope: str, ov: dict | Non
         return None
     _, L, S = book.items[entry]
     with overrides(ov):
-        sm = X.simulate(dc.df, f["atr"], dc.cost * cost_mult, exit_cfg)
+        sm = X.simulate(dc.df, f["atr"], dc.cost * cost_mult, exit_cfg, fund_bps_bar=C.fund_bps_bar(TF_MIN[dc.tf]))
     valid = sm["valid"]
     sides = []
     if scope in ("both", "long"):

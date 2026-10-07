@@ -23,6 +23,7 @@ TIMEFRAMES = {
     "30m": {"base": "5m", "rule": "30min"},
     "1h":  {"base": "1h", "rule": "1h"},
     "4h":  {"base": "1h", "rule": "4h"},
+    "1d":  {"base": "1h", "rule": "1D"},
 }
 YEARS_INTRADAY = float(os.getenv("ATVS_YEARS_INTRADAY", "2"))   # 5m tabanı geçmişi
 YEARS_HOURLY   = float(os.getenv("ATVS_YEARS_HOURLY", "15"))     # kaynakta ne kadar varsa (BTC/ETH ~2017'den)
@@ -190,3 +191,29 @@ IDX_PICK_PER_ASSET = 3                # portföy testine giden en iyi aday (fark
 IDX_RISK_GRID = (0.0, 0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02)   # strateji başına işlem riski seçenekleri (0 = kullanma)
 IDX_TARGET_MDD = float(os.getenv("ATVS_TARGET_MDD", "0.15"))  # portföy: %95 olasılıkla aşılmaması istenen düşüş
 IDX_SYMBOL = {"NQ": "QQQ/USDT:USDT", "SPX": "SPY/USDT:USDT"}
+
+
+# v4.1 — maliyet modeli: "bitget" (varsayılan; gerçek bot ortamı) ya da "eski" (CFD spread'i, yalnızca karşılaştırma için)
+COST_MODEL = os.getenv("ATVS_COST", "bitget")
+
+
+def fund_bps_bar(tf_min: int) -> float:
+    """Pozisyon açık kaldığı her mum için fonlama maliyeti (baz puan)."""
+    return BITGET_FUNDING_BPS_DAY * tf_min / 1440.0 if COST_MODEL == "bitget" else 0.0
+
+
+for _a, _v in ASSETS.items():
+    _v["cost_bps_eski"] = _v["cost_bps"]
+    if COST_MODEL == "bitget":
+        _v["cost_bps"] = bitget_cost_bps(_a)
+
+# ───────────────────────── MACD YÖN (kullanıcının stratejisi, v4.1) ─────────────────────────
+# MACD çizgisi sinyal çizgisinin üstündeyse yön LONG, altındaysa SHORT. Tek başına giriş değil, YÖN filtresi.
+MACD_DIR = (675, 875, 475)            # hızlı, yavaş, sinyal (EMA) — kullanıcının TradingView ayarı
+MACD_DIR_BASE_MIN = 60                # bu ayarların kullanıldığı grafik (1 saat) → "1s eşdeğeri" modunda diğer ZD'lere ölçeklenir
+_flt_env = os.getenv("ATVS_FILTERS", "")
+FILTERS_ON = tuple(x.strip() for x in _flt_env.split(",") if x.strip())     # boş = hepsi
+_ff_env = os.getenv("ATVS_FILTER_FAMILIES", "")
+if _ff_env:
+    FILTER_BASE_FAMILIES = tuple(x.strip() for x in _ff_env.split(",") if x.strip())
+FILTERED_ONLY = tuple(x.strip() for x in os.getenv("ATVS_FILTERED_ONLY", "").split(",") if x.strip())  # bu ailelerin yalnızca filtreli girişleri

@@ -46,7 +46,7 @@ def gap_mask(index: pd.DatetimeIndex, H: int) -> np.ndarray:
     return np.r_[ahead[1:], False]
 
 
-def simulate(df: pd.DataFrame, atr: pd.Series, cost_bps: float, cfg: dict, H: int | None = None) -> dict:
+def simulate(df: pd.DataFrame, atr: pd.Series, cost_bps: float, cfg: dict, H: int | None = None, fund_bps_bar: float = 0.0) -> dict:
     """Dönen: {1: R_long, -1: R_short, (1,'k'): çıkış ofseti, (-1,'k'): ..., 'valid': maske}.
     Çıkış ofseti k: işlem bar i+k içinde kapanır (1..H)."""
     o, h, l, c = (df[k].to_numpy(float) for k in ("open", "high", "low", "close"))
@@ -111,7 +111,7 @@ def simulate(df: pd.DataFrame, atr: pd.Series, cost_bps: float, cfg: dict, H: in
                 break
         cH = _shift(cl_s, H)
         R[alive] += size[alive] * (cH[alive] - e[alive]) / risk[alive]
-        cost = (cost_bps / 1e4) * entry0 / risk
+        cost = (cost_bps / 1e4) * entry0 / risk + (fund_bps_bar / 1e4) * kx * entry0 / risk
         R = np.clip(R, R_FLOOR, R_CAP) - cost
         R[~valid] = np.nan
         kx[~valid] = np.nan
@@ -120,11 +120,12 @@ def simulate(df: pd.DataFrame, atr: pd.Series, cost_bps: float, cfg: dict, H: in
     return out
 
 
-def simulate_all(df: pd.DataFrame, atr: pd.Series, cost_bps: float) -> dict:
-    return {name: simulate(df, atr, cost_bps, cfg) for name, cfg in C.EXITS.items()}
+def simulate_all(df: pd.DataFrame, atr: pd.Series, cost_bps: float, fund_bps_bar: float = 0.0) -> dict:
+    return {name: simulate(df, atr, cost_bps, cfg, fund_bps_bar=fund_bps_bar) for name, cfg in C.EXITS.items()}
 
 
-def simulate_one(o, h, l, c, a_sig: float, i: int, side: int, cfg: dict, cost_bps: float, H: int | None = None) -> dict:
+def simulate_one(o, h, l, c, a_sig: float, i: int, side: int, cfg: dict, cost_bps: float, H: int | None = None,
+                 fund_bps_bar: float = 0.0) -> dict:
     """Tek işlem. Mevcut barlarla ilerler; veri bitince 'open' durumunu ve güncel stopu döner.
     Fiyatlar gerçek eksende döner (SHORT için geri çevrilmiş)."""
     H = H or C.HORIZON
@@ -147,7 +148,7 @@ def simulate_one(o, h, l, c, a_sig: float, i: int, side: int, cfg: dict, cost_bp
     cost = (cost_bps / 1e4) * entry / risk
 
     def fin(Rv, k, why):
-        Rv = float(np.clip(Rv, R_FLOOR, R_CAP) - cost)
+        Rv = float(np.clip(Rv, R_FLOOR, R_CAP) - cost - (fund_bps_bar / 1e4) * k * entry / risk)
         res.update(status="closed", R=Rv, exit_k=k, reason=why)
         res["events"].append(("exit", k, why, Rv))
         return res
