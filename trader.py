@@ -39,12 +39,14 @@ os.environ.setdefault("ATVS_YEARS_HOURLY", "4")      # canlı için 4 yıl yeter
 
 import live as LV  # noqa: E402
 from lab import config as C  # noqa: E402
+from lab import index_lab as IL  # noqa: E402
 
 STATE_FILE = os.path.join(C.LIVE_STATE_DIR, "trader_state.json")
 TRADES_FILE = os.path.join(C.LIVE_STATE_DIR, "trader_trades.csv")
 FIN_FILE = os.path.join(C.LIVE_STATE_DIR, "finalists.json")
 TF_MIN = {"1h": 60, "4h": 240}
 MAX_ENTRY_DELAY = pd.Timedelta(hours=2)
+IDX_MAX_DELAY = pd.Timedelta(minutes=50)     # endeks: 15:00 ET kararı en geç 15:50'de uygulanır (16:00 seans kapanışı)
 
 
 def env(k, d=None):
@@ -78,7 +80,9 @@ LEV_MAX = int(env("ATVS_LEVERAGE", "50"))   # üst sınır; gerçek kaldıraç h
 MARGIN_SHARE = 0.80 if len(ONLY) == 1 else 0.40   # run() içinde aktif bot sayısına göre güncellenir
 LIQ_SAFETY = 4.0                            # tasfiye mesafesi ≥ 4 × stop mesafesi olmalı
 SYMBOLS = {"XAU": env("SYM_XAU", "XAU/USDT:USDT"), "ETH": env("SYM_ETH", "ETH/USDT:USDT"),
-           "BTC": env("SYM_BTC", "BTC/USDT:USDT"), "XAG": env("SYM_XAG", "XAG/USDT:USDT")}
+           "BTC": env("SYM_BTC", "BTC/USDT:USDT"), "XAG": env("SYM_XAG", "XAG/USDT:USDT"),
+           "NQ": env("SYM_NQ", C.IDX_SYMBOL["NQ"]), "SPX": env("SYM_SPX", C.IDX_SYMBOL["SPX"])}
+IDX_FILE = os.path.join(C.LIVE_STATE_DIR, "endeks_finalist.json")
 
 
 # ───────────────────────── borsa ─────────────────────────
@@ -142,6 +146,10 @@ class Broker:
 
     def price(self, sym, p) -> float:
         return float(self.ex.price_to_precision(sym, p))
+
+    def last_price(self, sym) -> float:
+        t = self.ex.fetch_ticker(sym)
+        return float(t.get("last") or t.get("close") or 0.0)
 
     def position(self, sym) -> dict | None:
         for p in self.ex.fetch_positions([sym]):
@@ -278,22 +286,23 @@ def manage(br: Broker, fz: dict, pos: dict, now: pd.Timestamp) -> dict | None:
     return pos
 
 
-def min_equity(br, sym, sl_atr):
+def min_equity(br, sym, sl_atr, tf="4h", risk=None):
     """Borsanın asgari miktarıyla %RISK'te işlem açabilmek için gereken en küçük kasa (güncel fiyat ve ATR ile)."""
+    risk = risk or RISK
     mq, mc = br.min_qty(sym)
-    c = br.candles(sym, "4h", int((pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=20)).timestamp() * 1000))
+    c = br.candles(sym, tf, int((pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=20 if tf == "4h" else 60)).timestamp() * 1000))
     d = pd.DataFrame(c, columns=["t", "o", "h", "l", "c", "v"])
     tr = pd.concat([d.h - d.l, (d.h - d.c.shift()).abs(), (d.l - d.c.shift()).abs()], axis=1).max(axis=1)
     atr, px = float(tr.tail(14).mean()), float(d.c.iloc[-1])
     dist = sl_atr * atr
-    need = max(mq * dist, (mc / px) * dist if mc else 0) / RISK * 1.2
+    need = max(mq * dist, (mc / px) * dist if mc else 0) / risk * 1.2
     return need, px, atr, dist, mq
 
 
-def choose_leverage(br, sym, eq, dist, px):
+def choose_leverage(br, sym, eq, dist, px, risk=None):
     """Gereken en düşük kaldıracı seçer. Güvenlik: tasfiye fiyatı stoptan en az LIQ_SAFETY kat uzakta kalmalı.
     Kaldıraç riski artırmaz (risk = stop mesafesi × miktar); yalnızca bağlanan teminatı azaltır."""
-    notional = eq * RISK / dist * px
+    notional = eq * (risk or RISK) / dist * px
     need = max(1, math.ceil(notional / (eq * MARGIN_SHARE)))
     safe = max(1, math.floor(px / (LIQ_SAFETY * dist)))        # kabaca tasfiye mesafesi ≈ fiyat / kaldıraç
     cap = min(LEV_MAX, br.max_lev(sym), safe)
@@ -303,23 +312,31 @@ def choose_leverage(br, sym, eq, dist, px):
     return need, f"pozisyon {notional:.0f} USDT · teminat ≈ {notional / need:.1f} USDT · güvenli üst sınır {cap}x"
 
 
-def open_trade(br: Broker, fz: dict, side: int, atr_sig: float, sig_time, ref_px: float) -> dict | None:
-    sym, cfg = SYMBOLS[fz["asset"]], fz["exit_cfg"]
+def open_trade(br: Broker, fz: dict, side: int, atr_sig: float, sig_time, ref_px: float,
+               risk: float | None = None, sl_mult: float | None = None) -> dict | None:
+    """atr_sig ve ref_px VERİ kaynağının biriminde (ör. NQ endeks puanı); borsa fiyatına oranla ölçeklenir (QQQ)."""
+    sym, cfg = SYMBOLS[fz["asset"]], fz.get("exit_cfg", {})
+    risk = risk or RISK
     br.market(sym)
     eq = br.equity()
-    dist = cfg["sl_atr"] * atr_sig
-    qty = br.amount(sym, eq * RISK / dist)
+    px_x = ref_px if DRY else (br.last_price(sym) or ref_px)
+    scale = px_x / ref_px if ref_px > 0 else 1.0
+    if not 0.2 < scale < 5 and fz["asset"] not in C.IDX_SYMBOL:
+        scale = 1.0
+    atr_x = atr_sig * scale
+    dist = (sl_mult if sl_mult is not None else cfg["sl_atr"]) * atr_x
+    qty = br.amount(sym, eq * risk / dist)
     if qty <= 0:
         log(f"  {fz['id']}: miktar borsanın asgarisinin altında (kasa {eq:.2f} USDT, stop mesafesi {dist:.4f}) — işlem atlandı")
         return None
-    lev, why = choose_leverage(br, sym, eq, dist, ref_px)
+    lev, why = choose_leverage(br, sym, eq, dist, px_x, risk)
     if lev is None:
         log(f"  {fz['id']}: {why} — işlem atlandı")
         return None
     br.prepare(sym, lev)
     log(f"  {fz['id']}: kaldıraç {lev}x ({why})")
     o = br.market_order(sym, side, qty)
-    fill = float(o.get("average") or 0) or ref_px
+    fill = float(o.get("average") or 0) or px_x
     if not DRY:
         time.sleep(1.0)
         p = br.position(sym)
@@ -327,8 +344,8 @@ def open_trade(br: Broker, fz: dict, side: int, atr_sig: float, sig_time, ref_px
             fill = p["entry"] or fill
     stop = fill - side * dist
     pos = {"symbol": sym, "side": side, "qty": qty, "entry": fill, "entry_time": str(pd.Timestamp.now(tz="UTC")),
-           "eq_entry": eq, "risk_usdt": eq * RISK, "dist": dist,
-           "signal_time": str(sig_time), "atr": atr_sig, "stop": stop, "be": False}
+           "eq_entry": eq, "risk_usdt": eq * risk, "dist": dist,
+           "signal_time": str(sig_time), "atr": atr_x, "stop": stop, "be": False}
     pos["stop_id"] = br.stop_order(sym, side, qty, stop)
     pos["tp_id"] = br.limit_close(sym, side, qty, fill + side * cfg["tp"] * dist) if cfg.get("tp") is not None else None
     log(f"  {fz['id']}: {'LONG' if side == 1 else 'SHORT'} {qty} {sym} @ {fill:.4f} · stop {stop:.4f}"
@@ -343,12 +360,73 @@ def auto_threshold(br, asset, st) -> float:
     if cache.get(asset, {}).get("day") != day:
         meta = LV.load_json(FIN_FILE, {})
         f = next((x for x in meta.get("finalistler", []) if x["asset"] == asset), None)
-        if f is None or asset not in SYMBOLS:
+        fi = next((x for x in idx_finalists() if x["asset"] == asset), None)
+        if (f is None and fi is None) or asset not in SYMBOLS:
             return float("inf")
-        need = min_equity(br, SYMBOLS[asset], f["exit_cfg"]["sl_atr"])[0]
+        if f is not None:
+            need = min_equity(br, SYMBOLS[asset], f["exit_cfg"]["sl_atr"])[0]
+        else:
+            need = min_equity(br, SYMBOLS[asset], fi["spec"]["k"], "1d", idx_risk(fi))[0]
         cache[asset] = {"day": day, "thr": round(2 * need, 2)}
         log(f"{asset} OTO eşik: {2 * need:.0f} USDT (asgari kasa {need:.0f} × 2)")
     return cache[asset]["thr"]
+
+
+def idx_finalists() -> list:
+    return [f for f in LV.load_json(IDX_FILE, {}).get("finalistler", []) if f.get("engine") == "idx"]
+
+
+def idx_risk(fz) -> float:
+    """Endeks stratejisinin riski: araştırmanın önerdiği risk × (ATVS_RISK / %1). ATVS_RISK yarıya inerse bu da yarıya iner."""
+    return float(fz.get("risk", 0.01)) * (RISK / 0.01)
+
+
+def run_idx(br: Broker, fz: dict, pos: dict | None, st: dict, now: pd.Timestamp) -> dict | None:
+    """Endeks motoru (lab/index_lab.py ile birebir aynı kurallar; selftest T8)."""
+    fid, s, sym = fz["id"], fz["spec"], SYMBOLS[fz["asset"]]
+    if pos and br.position(sym) is None:
+        log(f"  {fid}: pozisyon borsada kapanmış (stop) → kalan emirler iptal")
+        br.cancel(sym, pos.get("stop_id"), trigger=True)
+        record({"id": fid, "symbol": sym, "side": 1, "entry_time": pos["entry_time"], "entry": pos["entry"],
+                "exit_time": str(now), "reason": "borsada stop", "stop_last": pos["stop"]}, br, pos)
+        pos = None
+    dec = IL.live_decision(LV.base_1h(fz["asset"]), s, now)
+    if dec is None:
+        log(f"  {fid}: yeterli veri yok")
+        return pos
+    if st["last_bar"].get(fid) == dec["day"]:
+        return pos
+    st["last_bar"][fid] = dec["day"]
+    if now - dec["t_dec"] > IDX_MAX_DELAY:
+        log(f"  {fid}: {dec['day']} kararı geç görüldü ({now - dec['t_dec']}) — ABD seansı kapanmış olabilir, atlandı")
+        return pos
+    if pos:
+        if dec["day"] <= pos["entry_day"]:
+            return pos
+        pos["held"] = pos.get("held", 0) + 1
+        if dec["exit"] or pos["held"] >= s["tmax"]:
+            why = "sinyal" if dec["exit"] else "zaman"
+            live = br.position(sym)
+            log(f"  {fid}: çıkış ({why}, {pos['held']}. gün) → piyasadan kapat")
+            br.cancel(sym, pos.get("stop_id"), trigger=True)
+            if live:
+                br.market_order(sym, -1, live["qty"], reduce=True)
+            record({"id": fid, "symbol": sym, "side": 1, "entry_time": pos["entry_time"], "entry": pos["entry"],
+                    "exit_time": str(now), "reason": why, "stop_last": pos["stop"]}, br, pos)
+            return None
+        log(f"  {fid}: {dec['day']} — pozisyon açık ({pos['held']}/{s['tmax']} gün)")
+        return pos
+    if dec["entry"]:
+        try:
+            newp = open_trade(br, fz, 1, dec["atr"], dec["t_dec"], dec["close"], risk=idx_risk(fz), sl_mult=s["k"])
+        except Exception as e:      # ABD tatili / seans dışı: borsa yeni pozisyonu reddedebilir
+            log(f"  {fid}: emir reddedildi ({type(e).__name__}: {str(e)[:120]}) — bugün atlandı")
+            return None
+        if newp:
+            newp.update(spec=fz, entry_day=dec["day"], held=0, engine="idx")
+        return newp
+    log(f"  {fid}: {dec['day']} — sinyal yok")
+    return None
 
 
 def active_assets(eq: float, st: dict, br=None) -> set:
@@ -411,10 +489,12 @@ def run(br: Broker):
     st = load_state()
     if ONLY:
         live_set = active_assets(br.equity(), st, br)
-        MARGIN_SHARE = 0.80 if len(live_set) == 1 else 0.40
+        MARGIN_SHARE = 0.80 if len(live_set) == 1 else (0.40 if len(live_set) == 2 else 0.30)
     else:
         live_set = None
     fins = [f for f in meta.get("finalistler", []) if f["asset"] in SYMBOLS and (live_set is None or f["asset"] in live_set)]
+    # endeks stratejileri yalnızca aktif_botlar.txt'de AÇIKÇA yazılıysa çalışır
+    fins += [f for f in idx_finalists() if f["asset"] in SYMBOLS and live_set is not None and f["asset"] in live_set]
     now = LV.now_utc()
     if not fins and not any(st["pos"].values()):
         log("finalist yok — bekleniyor")
@@ -426,6 +506,9 @@ def run(br: Broker):
     for fid, fz in by_id.items():
         try:
             pos = st["pos"].get(fid)
+            if fz.get("engine") == "idx" or (pos and pos.get("engine") == "idx"):
+                st["pos"][fid] = run_idx(br, fz if fz.get("engine") == "idx" else pos["spec"], pos, st, now)
+                continue
             if pos:
                 pos = manage(br, fz, pos, now)
                 st["pos"][fid] = pos
@@ -483,6 +566,17 @@ def kontrol(br: Broker):
                 f"o kasada kaldıraç: {lev if lev else 'YETERSİZ'}x")
         except Exception as e:
             log(f"     asgari kasa hesaplanamadı: {type(e).__name__}: {str(e)[:100]}")
+    for f in idx_finalists():
+        sym = SYMBOLS.get(f["asset"])
+        act = bool(ONLY) and f["asset"] in ONLY
+        log(f"  {f['id']} (endeks, {'AKTİF' if act else 'kapalı — aktif_botlar.txt’ye ' + f['asset'] + ' eklenirse çalışır'}): {sym}")
+        try:
+            br.market(sym)
+            need, px, atr, dist, mq = min_equity(br, sym, f["spec"]["k"], "1d", idx_risk(f))
+            log(f"     fiyat {px:.2f} · günlük ATR {atr:.2f} · stop mesafesi {dist:.2f} · asgari miktar {mq} · "
+                f"risk %{100 * idx_risk(f):.2g} → ASGARİ KASA {need:.0f} USDT · OTO eşik {2 * need:.0f} USDT")
+        except Exception as e:
+            log(f"     kontrol edilemedi: {type(e).__name__}: {str(e)[:120]}")
     log("Kontrol tamam.")
 
 

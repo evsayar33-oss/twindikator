@@ -8,6 +8,7 @@ Testler
   T5 BOŞ HİPOTEZ: saf rastgele yürüyüşte finalist çıkmamalı (yanlış pozitif kontrolü)
   T6 canlı motor ↔ backtest: saatlik çalıştırmalar tekrar oynatılır; kâğıt işlemler backtest işlemleriyle aynı olmalı
   T7 canlı META yolu çöküşsüz çalışır
+  T8 endeks motoru: canlı karar mantığı backtest ile birebir aynı işlemleri üretir
 Çıkış kodu 0 = hepsi geçti.
 """
 from __future__ import annotations
@@ -248,9 +249,34 @@ def t6():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ───────────────────────── T8 endeks motoru: canlı karar = backtest
+def t8():
+    from lab import index_lab as IL
+    rng = np.random.default_rng(8)
+    idx = pd.date_range("2021-01-03", periods=int(2.2 * 365 * 24), freq="h", tz="UTC")
+    loc = idx.tz_convert("America/New_York")
+    idx = idx[~((loc.dayofweek == 5) | ((loc.dayofweek == 4) & (loc.hour >= 17)) | ((loc.dayofweek == 6) & (loc.hour < 18)))]
+    c = 4000 * np.exp(np.cumsum(rng.normal(0.00005, 0.003, len(idx))))
+    o = np.r_[c[0], c[:-1]]
+    sp = np.abs(rng.normal(0, 0.001, len(idx))) * c
+    h = pd.DataFrame({"open": o, "high": np.maximum(o, c) + sp, "low": np.minimum(o, c) - sp, "close": c, "volume": 1.0}, index=idx)
+    cx = IL.Ctx("SPX", h, cost_bps=0, fund_bps_day=0)
+    allok, tot = True, 0
+    for spec in ({"asset": "SPX", "fam": "RSI2", "p": {"th": 10}, "trend": False, "exit": "sma5", "k": 1.5, "tmax": 5},
+                 {"asset": "SPX", "fam": "IBS", "p": {"th": 0.25}, "trend": False, "exit": "prevhigh", "k": 2.5, "tmax": 10}):
+        bt = IL.run_spec(cx, spec)
+        _, X = cx.signals(spec)
+        a = [(d, w, IL._trade_from(cx, int(d), X, spec["k"], spec["tmax"])["j_end"]) for d, w in zip(bt["d"], bt["why"])]
+        rp = IL.replay_live(h, spec)
+        b = list(zip(rp["d"], rp["why"], rp["j_end"])) if len(rp) else []
+        allok &= len(a) > 5 and a == b[: len(a)]
+        tot += len(a)
+    check("T8 endeks motoru: canlı karar = backtest (stop/sinyal/zaman çıkışları)", allok, f"{tot} işlem")
+
+
 def main(fast: bool = False):
     t0 = time.time()
-    tests = [t1, t2, t3, t6] if fast else [t1, t2, t3, t4, t5, t6]
+    tests = [t1, t2, t3, t6, t8] if fast else [t1, t2, t3, t4, t5, t6, t8]
     for t in tests:
         try:
             t()
