@@ -1,0 +1,68 @@
+name: ATVS MACD (yön stratejisi + kombinasyonlar)
+
+on:
+  workflow_dispatch:
+    inputs:
+      assets:
+        description: "Varlıklar (virgülle): XAU,XAG,BTC,ETH,NQ,SPX"
+        default: "XAU,ETH"
+      tfs:
+        description: "Zaman dilimleri: 15m,30m,1h,4h,1d"
+        default: "30m,1h,4h,1d"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atvs-repo-write
+  cancel-in-progress: false
+
+jobs:
+  macd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      PYTHONUNBUFFERED: "1"
+      ATVS_COST: bitget
+      ATVS_TFS: ${{ github.event.inputs.tfs || '30m,1h,4h,1d' }}
+      ATVS_FAMILIES: MACDYON,DONCH,MA,RSI2,SQZ,OSC
+      ATVS_FILTERS: "MACD yön,MACD yön 1s"
+      ATVS_FILTER_FAMILIES: DONCH,MA,RSI2,SQZ,OSC
+      ATVS_FILTERED_ONLY: OSC
+      ATVS_STATE: state/macd          # canlı botun finalist dosyasına DOKUNMAZ
+      ATVS_OUT: reports/macd
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Öz-test (hızlı)
+        run: python selftest.py --fast
+      - name: Veri önbelleği (ortak)
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: atvs-data-${{ github.run_id }}
+          restore-keys: atvs-data-
+      - name: MACD araştırması (Bitget maliyetiyle) + finalist + portföy
+        run: |
+          set -o pipefail
+          mkdir -p reports/macd state/macd
+          python run_lab.py --assets "${{ github.event.inputs.assets || 'XAU,ETH' }}" 2>&1 | tee reports/macd/calisma_logu.txt
+      - name: Raporu depoya yaz
+        if: always()
+        run: |
+          git config user.name "atvs-lab-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reports/macd state/macd || true
+          git commit -m "ATVS MACD araştırması $(date -u +%Y-%m-%d)" || { echo "değişiklik yok"; exit 0; }
+          for i in 1 2 3 4 5; do git pull --rebase --autostash && git push && break; sleep $((i*10)); done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atvs-macd-rapor
+          path: |
+            reports/macd
+            selftest_sonuc.txt
