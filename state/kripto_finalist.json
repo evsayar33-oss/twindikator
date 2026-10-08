@@ -1,6 +1,6 @@
 {
- "aciklama": "Kripto günlük MACD kuralları — v4.3 doğrulamasını geçti (D1–D4 + maliyet×2). Riskler portföy testinden (EMA %0.25, X %1, ETH 4h Donchian %1, en fazla 6 açık, coin başına tek pozisyon).",
- "max_acik": 6,
+ "aciklama": "v5.3 — %20 düşüş toleransı satırı (risk yöneticisi dahil, limitli emir maliyeti): ATVS_RISK=%1.25 ile X %1.25, EMA %0.31, ETH 4h Donchian %1.25 · en fazla 8 açık · coin başına tek pozisyon. Backtest: CAGR %39.7, geçmiş maks. düşüş %14.8, OOS CAGR %23.",
+ "max_acik": 8,
  "finalistler": [
   {
    "id": "K1_KRIPTO_1d_X",
