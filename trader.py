@@ -17,7 +17,7 @@ Pozisyon büyüklüğü: kasa × risk ÷ stop mesafesi.
 Ortam değişkenleri (sunucuda ~/atvs.env):
   BITGET_KEY, BITGET_SECRET, BITGET_PASS   API bilgileri (yalnızca Futures order + Futures holdings yetkisi)
   BITGET_DEMO=1                            1 = demo (sahte para), 0 = gerçek hesap
-  ATVS_RISK=0.01                           işlem başına kasa riski
+  ATVS_RISK=0.02                           işlem başına kasa riski (v5.4)
   ATVS_ONLY=XAU                            yalnızca bu varlık(lar) (virgülle; boş = hepsi)
   ATVS_LEVERAGE=50                         kaldıraç ÜST SINIRI (otomatik seçilir; risk stop mesafesiyle belirlenir)
   SYM_XAU=XAU/USDT:USDT  SYM_ETH=ETH/USDT:USDT   borsa sembolleri (ccxt biçimi)
@@ -61,7 +61,7 @@ def log(*a):
 
 
 DRY = env("ATVS_DRY", "0") == "1"
-RISK = float(env("ATVS_RISK", "0.0125"))   # v5.3: %20 düşüş toleransı satırı (ETH Donchian %1.25; kripto riskleri bununla ölçeklenir)
+RISK = float(env("ATVS_RISK", "0.02"))   # v5.4: %25 düşüş toleransı satırı (ETH Donchian %2; kripto X %2, EMA %0.5 bununla ölçeklenir)
 def _only():
     """Aktif botlar: repodaki aktif_botlar.txt (GitHub'dan telefonla düzenlenir) > ATVS_ONLY > hepsi."""
     fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aktif_botlar.txt")
@@ -93,7 +93,8 @@ KR_DEFAULT_THR = 300.0
 #    "eşik:çarpan" listesi — ör. düşüş ≥ %10 → risk ×0.5, ≥ %20 → ×0.25, ≥ %30 → yeni işlem YOK (açıklar yönetilir)
 DD_STEPS = [tuple(float(v) for v in x.split(":")) for x in env("ATVS_DD_STEPS", "0.10:0.5,0.20:0.25,0.30:0").split(",")]
 DAILY_LOSS = float(env("ATVS_DAILY_LOSS", "0.03"))     # gün içinde kasa bu oranda düşerse o gün yeni işlem yok
-GOV = {"scale": 1.0, "why": ""}          # aktif_botlar.txt'de "KRIPTO OTO" yazılırsa kullanılacak kasa eşiği (USDT)
+MAX_OPEN_RISK = float(env("ATVS_MAX_OPEN_RISK", "0.10"))   # açık pozisyonların stoplarına kadar toplam risk ≤ kasanın %10u
+GOV = {"scale": 1.0, "why": "", "open_risk": 0.0}          # aktif_botlar.txt'de "KRIPTO OTO" yazılırsa kullanılacak kasa eşiği (USDT)
 
 
 # ───────────────────────── borsa ─────────────────────────
@@ -391,6 +392,9 @@ def open_trade(br: Broker, fz: dict, side: int, atr_sig: float, sig_time, ref_px
         return None
     br.market(sym)
     eq = br.equity()
+    if GOV["open_risk"] + risk > MAX_OPEN_RISK:
+        log(f"  {fz['id']}: sinyal var ama açık toplam risk %{100 * GOV['open_risk']:.1f} + %{100 * risk:.2f} > tavan %{100 * MAX_OPEN_RISK:.0f} — atlandı")
+        return None
     px_x = ref_px if DRY else (br.last_price(sym) or ref_px)
     scale = px_x / ref_px if ref_px > 0 else 1.0
     if not 0.2 < scale < 5 and fz["asset"] not in C.IDX_SYMBOL:
@@ -418,6 +422,7 @@ def open_trade(br: Broker, fz: dict, side: int, atr_sig: float, sig_time, ref_px
     pos = {"symbol": sym, "side": side, "qty": qty, "entry": fill, "entry_time": str(pd.Timestamp.now(tz="UTC")),
            "eq_entry": eq, "risk_usdt": eq * risk, "dist": dist,
            "signal_time": str(sig_time), "atr": atr_x, "stop": stop, "be": False}
+    GOV["open_risk"] += risk
     pos["stop_id"] = br.stop_order(sym, side, qty, stop)
     pos["tp_id"] = br.limit_close(sym, side, qty, fill + side * cfg["tp"] * dist) if cfg.get("tp") is not None else None
     log(f"  {fz['id']}: {'LONG' if side == 1 else 'SHORT'} {qty} {sym} @ {fill:.4f} · stop {stop:.4f}"
@@ -657,7 +662,12 @@ def governor(eq: float, st: dict, now: pd.Timestamp) -> None:
             scale, why = mult, f"zirveden düşüş %{100 * dd:.1f} ≥ %{100 * thr:.0f} → risk ×{mult:g}"
     if g["day_start"] > 0 and eq <= g["day_start"] * (1 - DAILY_LOSS):
         scale, why = 0.0, f"günlük zarar limiti (%{100 * DAILY_LOSS:.0f}) doldu — yarına kadar yeni işlem yok"
-    GOV.update(scale=scale, why=why, dd=dd)
+    open_risk = 0.0
+    for p in st.get("pos", {}).values():           # stop girişe/kâra çekilmiş pozisyonlar artık risk taşımaz
+        if p and p.get("risk_usdt") and eq > 0:
+            at_risk = p["side"] * (p["entry"] - p["stop"]) > 0
+            open_risk += (p["risk_usdt"] / eq) if at_risk else 0.0
+    GOV.update(scale=scale, why=why, dd=dd, open_risk=open_risk)
     if why:
         log(f"  RİSK YÖNETİCİSİ: {why}")
 
