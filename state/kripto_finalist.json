@@ -1,0 +1,74 @@
+{
+ "aciklama": "Kripto günlük MACD kuralları — v4.3 doğrulamasını geçti (D1–D4 + maliyet×2). Riskler portföy testinden (EMA %0.25, X %1, ETH 4h Donchian %1, en fazla 6 açık, coin başına tek pozisyon).",
+ "max_acik": 6,
+ "finalistler": [
+  {
+   "id": "K1_KRIPTO_1d_X",
+   "engine": "kripto1d",
+   "rule": "X",
+   "scope": "long",
+   "tf": "1d",
+   "exit": "IZ_SUREN_2.5ATR",
+   "exit_cfg": {
+    "sl_atr": 1.0,
+    "tp": null,
+    "trail": 2.5,
+    "trail_mode": "always"
+   },
+   "risk": 0.01,
+   "coins": [
+    "BTC",
+    "ETH",
+    "BNB",
+    "XRP",
+    "ADA",
+    "SOL",
+    "DOGE",
+    "LTC",
+    "LINK",
+    "TRX",
+    "DOT",
+    "AVAX",
+    "BCH",
+    "ETC",
+    "XLM"
+   ],
+   "horizon": 48,
+   "rules": "Günlük grafik. Yön: MACD (≈28/36/20 EMA) çizgisi sinyalin üstündeyken hızlı MACD(12,26,9) sinyal çizgisini yukarı keserse, ertesi günün açılışında LONG. Stop: 1 × ATR(14); iz süren stop: en uç fiyattan 2.5 × ATR. 48 gün sonra hâlâ açıksa kapanış."
+  },
+  {
+   "id": "K2_KRIPTO_1d_EMA",
+   "engine": "kripto1d",
+   "rule": "EMA",
+   "scope": "both",
+   "tf": "1d",
+   "exit": "IZ_SUREN_2.5ATR",
+   "exit_cfg": {
+    "sl_atr": 1.0,
+    "tp": null,
+    "trail": 2.5,
+    "trail_mode": "always"
+   },
+   "risk": 0.0025,
+   "coins": [
+    "BTC",
+    "ETH",
+    "BNB",
+    "XRP",
+    "ADA",
+    "SOL",
+    "DOGE",
+    "LTC",
+    "LINK",
+    "TRX",
+    "DOT",
+    "AVAX",
+    "BCH",
+    "ETC",
+    "XLM"
+   ],
+   "horizon": 48,
+   "rules": "Günlük grafik. Yön: MACD(675/875/475'in günlük karşılığı ≈ 28/36/20 EMA) çizgisi sinyalin üstündeyse yalnız LONG, altındaysa yalnız SHORT. Giriş: gün içinde fiyat EMA20'ye değip EMA20'nin doğru tarafında kapanırsa, ertesi günün açılışında. Stop: 1 × ATR(14); iz süren stop: en uç fiyattan 2.5 × ATR. 48 gün sonra hâlâ açıksa kapanış."
+  }
+ ]
+}
