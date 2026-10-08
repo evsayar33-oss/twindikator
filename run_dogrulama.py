@@ -55,25 +55,7 @@ def log(*a):
 
 
 # ───────────────────────── kurallar (lab/strategies.fam_macdyon ile birebir; selftest benzeri kontrol aşağıda) ─────────────────────────
-def direction(c: pd.Series, scale: float = 1.0, tf_min: int = 1440) -> np.ndarray:
-    s = C.MACD_DIR_BASE_MIN / tf_min * scale
-    nf, ns, nsig = (max(2, int(round(x * s))) for x in C.MACD_DIR)
-    m = FT.ema(c, nf) - FT.ema(c, ns)
-    return np.sign((m - FT.ema(m, nsig)).to_numpy())
-
-
-def entries(df: pd.DataFrame, d: np.ndarray, ema_len: int = 20) -> dict:
-    c, h, l = (df[k].to_numpy(float) for k in ("close", "high", "low"))
-    up, dn = d > 0, d < 0
-    e = FT.ema(df["close"], ema_len).to_numpy()
-    with np.errstate(invalid="ignore"):
-        Le, Se = up & (l <= e) & (c > e), dn & (h >= e) & (c < e)
-    fm = FT.ema(df["close"], 12) - FT.ema(df["close"], 26)
-    xx = (fm - FT.ema(fm, 9)).to_numpy()
-    Lx = up & ST.cross_up(xx, 0.0)
-    z = np.zeros(len(c), bool)
-    f = lambda a, n: ST.cooldown(np.nan_to_num(a.astype(float)).astype(bool), n)  # noqa: E731
-    return {"EMA": (f(Le, 6), f(Se, 6)), "X": (f(Lx, 3), z)}
+from lab.kripto import direction, entries  # noqa: E402  (araştırma ve canlı bot aynı kod)
 
 
 def placebo_dir(d: np.ndarray, rng) -> np.ndarray:

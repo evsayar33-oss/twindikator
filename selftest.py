@@ -274,9 +274,30 @@ def t8():
     check("T8 endeks motoru: canlı karar = backtest (stop/sinyal/zaman çıkışları)", allok, f"{tot} işlem")
 
 
+# ───────────────────────── T9 kripto günlük kuralları: canlı (kesik veri) = backtest (tam veri)
+def t9():
+    from lab import kripto as K
+    from lab import strategies as ST2, features as FT2
+    rng = np.random.default_rng(9)
+    n = 1500
+    c = 100 * np.exp(np.cumsum(rng.standard_t(4, n) * 0.03))
+    o = np.r_[c[0], c[:-1]]
+    sp = np.abs(rng.normal(0, 0.02, n)) * c
+    df = pd.DataFrame({"open": o, "high": np.maximum(o, c) + sp, "low": np.minimum(o, c) - sp, "close": c, "volume": 1.0},
+                      index=pd.date_range("2021-01-01", periods=n, freq="1D", tz="UTC"))
+    E = K.entries(df)
+    bad = sum(int(K.entries(df.iloc[: i + 1])[r][j][-1] != E[r][j][i]) for i in range(300, n, 23) for r in ("EMA", "X") for j in (0, 1))
+    f = FT2.compute(df)
+    book = ST2.build_all(df, f, 1440, np.zeros(n, bool), None, "", None, families=("MACDYON",))
+    same = np.array_equal(book.items["MACDYON · yön + EMA20'ye geri çekilme (1s eşdeğeri)"][1], E["EMA"][0]) and \
+        np.array_equal(book.items["MACDYON · yön + hızlı MACD(12,26,9) kesişimi (1s eşdeğeri)"][1], E["X"][0])
+    check("T9 kripto günlük: canlı sinyal = backtest, araştırma motoru ile aynı", bad == 0 and same and E["EMA"][0].sum() > 5,
+          f"uyuşmazlık {bad}, lab ile aynı: {same}")
+
+
 def main(fast: bool = False):
     t0 = time.time()
-    tests = [t1, t2, t3, t6, t8] if fast else [t1, t2, t3, t4, t5, t6, t8]
+    tests = [t1, t2, t3, t6, t8, t9] if fast else [t1, t2, t3, t4, t5, t6, t8, t9]
     for t in tests:
         try:
             t()

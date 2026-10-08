@@ -40,6 +40,8 @@ os.environ.setdefault("ATVS_YEARS_HOURLY", "4")      # canlı için 4 yıl yeter
 import live as LV  # noqa: E402
 from lab import config as C  # noqa: E402
 from lab import index_lab as IL  # noqa: E402
+from lab import kripto as KR  # noqa: E402
+from lab import features as FT  # noqa: E402
 
 STATE_FILE = os.path.join(C.LIVE_STATE_DIR, "trader_state.json")
 TRADES_FILE = os.path.join(C.LIVE_STATE_DIR, "trader_trades.csv")
@@ -83,6 +85,15 @@ SYMBOLS = {"XAU": env("SYM_XAU", "XAU/USDT:USDT"), "ETH": env("SYM_ETH", "ETH/US
            "BTC": env("SYM_BTC", "BTC/USDT:USDT"), "XAG": env("SYM_XAG", "XAG/USDT:USDT"),
            "NQ": env("SYM_NQ", C.IDX_SYMBOL["NQ"]), "SPX": env("SYM_SPX", C.IDX_SYMBOL["SPX"])}
 IDX_FILE = os.path.join(C.LIVE_STATE_DIR, "endeks_finalist.json")
+KR_FILE = os.path.join(C.LIVE_STATE_DIR, "kripto_finalist.json")
+for _c in KR.COINS:
+    SYMBOLS.setdefault(_c, env(f"SYM_{_c}", f"{_c}/USDT:USDT"))
+KR_DEFAULT_THR = 300.0
+# ── RİSK YÖNETİCİSİ (kasa koruması): zirveden düşüşe göre risk kademeli azalır; günlük zarar limiti
+#    "eşik:çarpan" listesi — ör. düşüş ≥ %10 → risk ×0.5, ≥ %20 → ×0.25, ≥ %30 → yeni işlem YOK (açıklar yönetilir)
+DD_STEPS = [tuple(float(v) for v in x.split(":")) for x in env("ATVS_DD_STEPS", "0.10:0.5,0.20:0.25,0.30:0").split(",")]
+DAILY_LOSS = float(env("ATVS_DAILY_LOSS", "0.03"))     # gün içinde kasa bu oranda düşerse o gün yeni işlem yok
+GOV = {"scale": 1.0, "why": ""}          # aktif_botlar.txt'de "KRIPTO OTO" yazılırsa kullanılacak kasa eşiği (USDT)
 
 
 # ───────────────────────── borsa ─────────────────────────
@@ -164,6 +175,45 @@ class Broker:
             return {"id": "dry", "average": None}
         return self.ex.create_order(sym, "market", "buy" if side == 1 else "sell", qty, None, {"reduceOnly": reduce} if reduce else {})
 
+    def entry_order(self, sym, side, qty, tries: int = 3, wait_s: float = 20.0):
+        """Giriş: post-only LİMİT emir (maker ücreti). En iyi alış/satış fiyatına konur; dolmazsa fiyat güncellenip
+        tekrar denenir; `tries` deneme sonunda kalan miktar PİYASA emriyle tamamlanır (sinyal kaçırılmaz)."""
+        if DRY or C.ORDER_MODE != "limit":
+            return self.market_order(sym, side, qty)
+        filled, cost = 0.0, 0.0
+        for t in range(tries):
+            rem = float(self.ex.amount_to_precision(sym, qty - filled)) if qty - filled > 0 else 0.0
+            if rem <= 0:
+                break
+            try:
+                tk = self.ex.fetch_ticker(sym)
+                px = float(tk.get("bid") if side == 1 else tk.get("ask") or tk.get("last"))
+                o = self.ex.create_order(sym, "limit", "buy" if side == 1 else "sell", rem, self.price(sym, px), {"postOnly": True})
+                time.sleep(wait_s)
+                st = self.ex.fetch_order(o["id"], sym)
+                f = float(st.get("filled") or 0)
+                if st.get("status") not in ("closed", "canceled"):
+                    try:
+                        self.ex.cancel_order(o["id"], sym)
+                    except Exception:
+                        pass
+                    st = self.ex.fetch_order(o["id"], sym)
+                    f = float(st.get("filled") or 0)
+                if f > 0:
+                    filled += f
+                    cost += f * float(st.get("average") or px)
+                log(f"  limit giriş denemesi {t + 1}/{tries}: {f}/{rem} doldu @ {px}")
+            except Exception as e:
+                log(f"  (limit giriş denemesi {t + 1} hata: {type(e).__name__}: {str(e)[:100]})")
+        rem = float(self.ex.amount_to_precision(sym, qty - filled)) if qty - filled > 0 else 0.0
+        mn = float((self.market(sym).get("limits", {}).get("amount", {}) or {}).get("min") or 0)
+        if rem > 0 and rem >= mn:
+            o = self.market_order(sym, side, rem)
+            filled += rem
+            cost += rem * float(o.get("average") or 0)
+            log(f"  kalan {rem} piyasa emriyle tamamlandı")
+        return {"id": "entry", "average": cost / filled if filled and cost else None, "filled": filled}
+
     def stop_order(self, sym, pos_side, qty, stop):
         """Pozisyonu kapatan tetikli piyasa emri (borsada bekler)."""
         if DRY:
@@ -190,6 +240,19 @@ class Broker:
 
     def candles(self, sym, tf, since_ms):
         return self.ex.fetch_ohlcv(sym, tf, since=since_ms, limit=200)
+
+    def candles_all(self, sym, tf, since_ms, max_pages=12):
+        out, cur = [], since_ms
+        for _ in range(max_pages):
+            rows = self.ex.fetch_ohlcv(sym, tf, since=cur, limit=200)
+            rows = [r for r in rows if not out or r[0] > out[-1][0]]
+            if not rows:
+                break
+            out += rows
+            cur = rows[-1][0] + 1
+            if len(rows) < 150:
+                break
+        return out
 
 
 # ───────────────────────── durum ─────────────────────────
@@ -249,8 +312,14 @@ def manage(br: Broker, fz: dict, pos: dict, now: pd.Timestamp) -> dict | None:
     step = pd.Timedelta(minutes=TF_MIN[fz["tf"]])
     sig_t = pd.Timestamp(pos["signal_time"])
     entry_bar = sig_t + step
-    rows = br.candles(sym, fz["tf"], int(entry_bar.timestamp() * 1000))
-    closed = [r for r in rows if pd.Timestamp(r[0], unit="ms", tz="UTC") + step <= now and pd.Timestamp(r[0], unit="ms", tz="UTC") >= entry_bar]
+    if fz["tf"] == "1d":      # günlük: saatlik mumlardan yalnızca TAMAMLANMIŞ UTC günleri (backtest ile aynı)
+        rows = br.candles_all(sym, "1h", int(entry_bar.timestamp() * 1000))
+        day_end = now.floor("D")
+        closed = [r for r in rows if pd.Timestamp(r[0], unit="ms", tz="UTC") >= entry_bar
+                  and pd.Timestamp(r[0], unit="ms", tz="UTC") + pd.Timedelta(hours=1) <= day_end]
+    else:
+        rows = br.candles(sym, fz["tf"], int(entry_bar.timestamp() * 1000))
+        closed = [r for r in rows if pd.Timestamp(r[0], unit="ms", tz="UTC") + step <= now and pd.Timestamp(r[0], unit="ms", tz="UTC") >= entry_bar]
     bars_held = int((now - entry_bar) / step)
     new_stop = pos["stop"]
     if closed:
@@ -316,7 +385,10 @@ def open_trade(br: Broker, fz: dict, side: int, atr_sig: float, sig_time, ref_px
                risk: float | None = None, sl_mult: float | None = None) -> dict | None:
     """atr_sig ve ref_px VERİ kaynağının biriminde (ör. NQ endeks puanı); borsa fiyatına oranla ölçeklenir (QQQ)."""
     sym, cfg = SYMBOLS[fz["asset"]], fz.get("exit_cfg", {})
-    risk = risk or RISK
+    risk = (risk or RISK) * GOV["scale"]
+    if risk <= 0:
+        log(f"  {fz['id']}: sinyal var ama risk yöneticisi yeni işlemi durdurdu ({GOV['why']})")
+        return None
     br.market(sym)
     eq = br.equity()
     px_x = ref_px if DRY else (br.last_price(sym) or ref_px)
@@ -335,7 +407,7 @@ def open_trade(br: Broker, fz: dict, side: int, atr_sig: float, sig_time, ref_px
         return None
     br.prepare(sym, lev)
     log(f"  {fz['id']}: kaldıraç {lev}x ({why})")
-    o = br.market_order(sym, side, qty)
+    o = br.entry_order(sym, side, qty)
     fill = float(o.get("average") or 0) or px_x
     if not DRY:
         time.sleep(1.0)
@@ -429,11 +501,99 @@ def run_idx(br: Broker, fz: dict, pos: dict | None, st: dict, now: pd.Timestamp)
     return None
 
 
+def kr_finalists() -> dict:
+    return LV.load_json(KR_FILE, {})
+
+
+def kr_daily(coin: str, interval: str = "1d") -> pd.DataFrame:
+    """Binance mumları (son 1000 mum; EMA/ATR için fazlasıyla yeterli ısınma). Yalnızca KAPANMIŞ mumlar."""
+    import requests
+    step = pd.Timedelta(interval.replace("d", "D"))
+    for host in ("https://data-api.binance.vision", "https://api.binance.com"):
+        try:
+            r = requests.get(f"{host}/api/v3/klines", params={"symbol": f"{coin}USDT", "interval": interval, "limit": 1000}, timeout=20)
+            if r.status_code == 200 and r.json():
+                a = np.array([[float(x) for x in b[:6]] for b in r.json()])
+                df = pd.DataFrame(a[:, 1:6], index=pd.to_datetime(a[:, 0].astype("int64"), unit="ms", utc=True),
+                                  columns=["open", "high", "low", "close", "volume"])
+                return df[df.index + step <= LV.now_utc()]
+        except Exception:
+            continue
+    return pd.DataFrame()
+
+
+def run_kripto(br: Broker, st: dict, now: pd.Timestamp, live_set) -> None:
+    """Kripto günlük kuralları: günde bir kez (UTC gün kapanışından sonraki ilk çalıştırma). Coin başına tek pozisyon,
+    toplam en fazla max_acik açık pozisyon (diğer stratejiler dahil)."""
+    meta = kr_finalists()
+    fins = meta.get("finalistler", [])
+    if not fins:
+        return
+    on = live_set is not None and "KRIPTO" in live_set
+    # açık kripto pozisyonlarını yönet (her çalıştırmada; yeni gün yoksa iz süren stop değişmez)
+    for key, pos in list(st["pos"].items()):
+        if pos and pos.get("engine") == "kripto1d":
+            try:
+                st["pos"][key] = manage(br, pos["spec"], pos, now)
+            except Exception:
+                log(f"  {key}: HATA\n{traceback.format_exc()}")
+    if not on:
+        return
+    max_open = int(meta.get("max_acik", 6))
+    busy = {p["symbol"] for p in st["pos"].values() if p}
+    n_open = sum(1 for p in st["pos"].values() if p)
+    for fz in fins:                                         # dosyadaki sıra = öncelik
+        tf = fz.get("tf", "1d")
+        step = pd.Timedelta(minutes=TF_MIN[tf])
+        last_close = now.floor("D") if tf == "1d" else now.floor(step)       # son kapanan mumun bitişi
+        bar = str(last_close - step)
+        bkey = f"KRIPTO:{fz['id']}"
+        if st["last_bar"].get(bkey) == bar:
+            continue
+        st["last_bar"][bkey] = bar
+        if now - last_close > MAX_ENTRY_DELAY:
+            log(f"  {fz['id']}: {bar} mumu geç görüldü — kovalamamak için girişler atlandı")
+            continue
+        for coin in fz["coins"]:
+            sym = SYMBOLS.get(coin)
+            key = f"{fz['id']}:{coin}"
+            if not sym or st["pos"].get(key):
+                continue
+            try:
+                df = kr_daily(coin, tf)
+                if len(df) < 300 or str(df.index[-1]) != bar:
+                    continue
+                L, S = KR.entries(df, tf_min=TF_MIN[tf])[fz["rule"]]
+                go_l, go_s = bool(L[-1]) and fz["scope"] in ("long", "both"), bool(S[-1]) and fz["scope"] in ("short", "both")
+                if not (go_l ^ go_s):
+                    continue
+                if sym in busy:
+                    log(f"  {key}: sinyal var ama {coin}'de zaten pozisyon var — atlandı")
+                    continue
+                if n_open >= max_open:
+                    log(f"  {key}: sinyal var ama açık pozisyon sınırı ({max_open}) dolu — atlandı")
+                    continue
+                atr = float(FT.compute(df)["atr"].iloc[-1])
+                spec = {**fz, "asset": coin, "id": key}
+                newp = open_trade(br, spec, 1 if go_l else -1, atr, df.index[-1], float(df["close"].iloc[-1]),
+                                  risk=float(fz["risk"]) * (RISK / 0.01))
+                if newp:
+                    newp.update(spec=spec, engine="kripto1d")
+                    st["pos"][key] = newp
+                    busy.add(sym)
+                    n_open += 1
+            except Exception:
+                log(f"  {key}: HATA\n{traceback.format_exc()}")
+        log(f"  {fz['id']}: {bar} mumu tarandı · açık pozisyon {n_open}/{max_open}")
+
+
 def active_assets(eq: float, st: dict, br=None) -> set:
     """Kasa eşiğine göre otomatik devreye alma. Geri düşüşte %20 tampon: eşik 150 ise 120'nin altında yeni işlem durur."""
     act = st.setdefault("active", {})
     out = set()
     for a, thr in ONLY.items():
+        if a == "KRIPTO" and thr < 0:
+            thr = KR_DEFAULT_THR
         if thr < 0:
             try:
                 thr = auto_threshold(br, a, st)
@@ -483,25 +643,49 @@ def log_equity(br, st):
         log(f"  (kasa kaydı yazılamadı: {type(e).__name__}: {str(e)[:100]})")
 
 
+def governor(eq: float, st: dict, now: pd.Timestamp) -> None:
+    """Kasa koruması: zirve kasa ve gün başı kasası durum dosyasında tutulur."""
+    g = st.setdefault("gov", {})
+    g["peak"] = max(float(g.get("peak", 0.0)), eq)
+    day = str(now.date())
+    if g.get("day") != day:
+        g["day"], g["day_start"] = day, eq
+    dd = 1 - eq / g["peak"] if g["peak"] > 0 else 0.0
+    scale, why = 1.0, ""
+    for thr, mult in sorted(DD_STEPS):
+        if dd >= thr:
+            scale, why = mult, f"zirveden düşüş %{100 * dd:.1f} ≥ %{100 * thr:.0f} → risk ×{mult:g}"
+    if g["day_start"] > 0 and eq <= g["day_start"] * (1 - DAILY_LOSS):
+        scale, why = 0.0, f"günlük zarar limiti (%{100 * DAILY_LOSS:.0f}) doldu — yarına kadar yeni işlem yok"
+    GOV.update(scale=scale, why=why, dd=dd)
+    if why:
+        log(f"  RİSK YÖNETİCİSİ: {why}")
+
+
 def run(br: Broker):
     global MARGIN_SHARE
     meta = LV.load_json(FIN_FILE, {})
     st = load_state()
+    _eq = br.equity()
+    governor(_eq, st, LV.now_utc())
     if ONLY:
-        live_set = active_assets(br.equity(), st, br)
-        MARGIN_SHARE = 0.80 if len(live_set) == 1 else (0.40 if len(live_set) == 2 else 0.30)
+        live_set = active_assets(_eq, st, br)
+        MARGIN_SHARE = 0.25 if "KRIPTO" in live_set else (0.80 if len(live_set) == 1 else (0.40 if len(live_set) == 2 else 0.30))
     else:
         live_set = None
     fins = [f for f in meta.get("finalistler", []) if f["asset"] in SYMBOLS and (live_set is None or f["asset"] in live_set)]
     # endeks stratejileri yalnızca aktif_botlar.txt'de AÇIKÇA yazılıysa çalışır
     fins += [f for f in idx_finalists() if f["asset"] in SYMBOLS and live_set is not None and f["asset"] in live_set]
     now = LV.now_utc()
-    if not fins and not any(st["pos"].values()):
+    run_kripto(br, st, now, live_set)
+    if not fins and not any(p for p in st["pos"].values() if p and p.get("engine") != "kripto1d"):
+        log_equity(br, st)
+        LV.save_json(STATE_FILE, st)
         log("finalist yok — bekleniyor")
         return
     by_id = {f["id"]: f for f in fins}
     for fid, p in st["pos"].items():
-        if p and fid not in by_id:
+        if p and fid not in by_id and p.get("engine") != "kripto1d":
             by_id[fid] = p["spec"]
     for fid, fz in by_id.items():
         try:
@@ -524,7 +708,9 @@ def run(br: Broker):
             st["last_bar"][fid] = str(bar_t)
             go_l = bool(L[j]) and fz["scope"] in ("both", "long")
             go_s = bool(S[j]) and fz["scope"] in ("both", "short")
-            if pos is None and (go_l ^ go_s):
+            if pos is None and (go_l ^ go_s) and any(p and p.get("symbol") == SYMBOLS[fz["asset"]] for k, p in st["pos"].items() if k != fid):
+                log(f"  {fid}: sinyal var ama {fz['asset']}'de başka stratejinin pozisyonu açık — atlandı (coin başına tek pozisyon)")
+            elif pos is None and (go_l ^ go_s):
                 close_t = bar_t + pd.Timedelta(minutes=TF_MIN[fz["tf"]])
                 if now - close_t > MAX_ENTRY_DELAY:
                     log(f"  {fid}: sinyal geç görüldü ({now - close_t}) — kovalamamak için atlandı")
@@ -577,6 +763,19 @@ def kontrol(br: Broker):
                 f"risk %{100 * idx_risk(f):.2g} → ASGARİ KASA {need:.0f} USDT · OTO eşik {2 * need:.0f} USDT")
         except Exception as e:
             log(f"     kontrol edilemedi: {type(e).__name__}: {str(e)[:120]}")
+    km = kr_finalists()
+    for f in km.get("finalistler", []):
+        act = bool(ONLY) and "KRIPTO" in ONLY
+        log(f"  {f['id']} (kripto günlük, risk %{100 * f['risk'] * RISK / 0.01:.2g}, {len(f['coins'])} coin): "
+            f"{'AKTİF' if act else 'kapalı — aktif_botlar.txt’ye KRIPTO eklenirse çalışır'}")
+    if km.get("finalistler"):
+        miss = []
+        for coin in KR.COINS:
+            try:
+                br.market(SYMBOLS[coin])
+            except Exception:
+                miss.append(coin)
+        log(f"     Bitget'te bulunamayan kripto sembolleri: {', '.join(miss) if miss else 'yok — hepsi tamam'}")
     log("Kontrol tamam.")
 
 

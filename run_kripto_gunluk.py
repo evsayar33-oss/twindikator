@@ -59,27 +59,28 @@ def cost_of(sym: str) -> float:
 
 
 # ───────────────────────── veri ─────────────────────────
-def load_daily(sym: str, synth: bool, seed: int) -> pd.DataFrame:
+def load_daily(sym: str, synth: bool, seed: int, interval: str = "1d") -> pd.DataFrame:
+    step = pd.Timedelta(interval.replace("d", "D"))
     if synth:
         rng = np.random.default_rng(seed)
-        n = 3000
+        n = 3000 if interval == "1d" else 9000
         c = 100 * np.exp(np.cumsum(rng.standard_t(4, n) * 0.03))
         o = np.r_[c[0], c[:-1]]
         sp = np.abs(rng.normal(0, 0.02, n)) * c
-        idx = pd.date_range(end="2026-10-01", periods=n, freq="1D", tz="UTC")
+        idx = pd.date_range(end="2026-10-01", periods=n, freq=step, tz="UTC")
         return pd.DataFrame({"open": o, "high": np.maximum(o, c) + sp, "low": np.minimum(o, c) - sp, "close": c,
                              "volume": np.exp(rng.normal(10, 0.5, n))}, index=idx)
     os.makedirs(C.DATA_DIR, exist_ok=True)
-    path = os.path.join(C.DATA_DIR, f"kripto_1d_{sym}.csv.gz")
+    path = os.path.join(C.DATA_DIR, f"kripto_{interval}_{sym}.csv.gz")
     end = datetime.now(timezone.utc)
     if os.path.exists(path):
         old = pd.read_csv(path, index_col=0, parse_dates=True)
         old.index = pd.to_datetime(old.index, utc=True)
-        new = D._binance_monthly_zips(sym, "1d", (old.index[-1] - timedelta(days=40)).to_pydatetime(), end)
+        new = D._binance_monthly_zips(sym, interval, (old.index[-1] - timedelta(days=40)).to_pydatetime(), end)
         df = D._finish(pd.concat([old, new]))
     else:
-        df = D._binance_monthly_zips(sym, "1d", datetime(2017, 7, 1, tzinfo=timezone.utc), end)
-    df = df[df.index + pd.Timedelta(days=1) <= pd.Timestamp(end)]          # yalnızca kapanmış günler
+        df = D._binance_monthly_zips(sym, interval, datetime(2017, 7, 1, tzinfo=timezone.utc), end)
+    df = df[df.index + step <= pd.Timestamp(end)]          # yalnızca kapanmış mumlar
     if len(df):
         df.to_csv(path, compression="gzip")
     return df

@@ -1,4 +1,5 @@
-XAU
-ETH OTO    # kasa "asgari kasanın 2 katını" geçince ETH kendiliğinden devreye girer
-# SPX OTO  # (endeks araştırması SPX önerirse) başındaki "# " işaretini sil → SPY botu kasa yeterince büyüyünce devreye girer
-# NQ OTO   # (endeks araştırması NQ önerirse) aynı şekilde QQQ botu
+# XAU      # Bitget piyasa emri maliyetiyle kârı ~0 (v4 bulgusu) — limitli emir modu gelene kadar KAPALI
+ETH OTO    # kasa "asgari kasanın 2 katını" geçince ETH 4h Donchian kendiliğinden devreye girer
+KRIPTO 300    # kripto günlük MACD kuralları (15 coin): kasa 300 USDT ve üstüne çıkınca kendiliğinden devreye girer
+# SPX OTO  # (endeks araştırması SPX önerirse)
+# NQ OTO   # (endeks araştırması NQ önerirse)
