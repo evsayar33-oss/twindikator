@@ -167,9 +167,20 @@ BITGET_SPREAD_BPS = {"XAU": 2.0, "XAG": 4.0, "BTC": 1.0, "ETH": 1.0, "NQ": 3.0, 
 BITGET_FUNDING_BPS_DAY = float(os.getenv("ATVS_FUNDING_BPS_DAY", "3"))   # ≈ 0.01% / 8 saat (tipik); uzun tutulan işlemleri cezalandırır
 
 
+BITGET_MAKER_BPS = float(os.getenv("ATVS_MAKER_BPS", "2"))
+# Emir modu: "limit" = girişler post-only limit emirle (dolmazsa en fazla 3 denemeden sonra piyasa emri),
+# çıkışlar: stop her zaman piyasa (taker; kasa koruması için stop-limit KULLANILMAZ). "market" = her şey piyasa emri.
+ORDER_MODE = os.getenv("ATVS_ORDER", "limit")
+LIMIT_FILL = float(os.getenv("ATVS_LIMIT_FILL", "0.8"))   # girişlerin maker olarak dolma oranı varsayımı (kalanı taker)
+
+
 def bitget_cost_bps(asset: str) -> float:
-    """Gidiş-dönüş toplam: 2 × taker + spread/kayma (baz puan)."""
-    return 2 * BITGET_TAKER_BPS + BITGET_SPREAD_BPS.get(asset, 3.0)
+    """Gidiş-dönüş toplam (baz puan). limit modu: giriş = %80 maker + %20 taker, çıkış = taker (muhafazakâr: hedefler aslında maker)."""
+    spread = BITGET_SPREAD_BPS.get(asset, 3.0)
+    if ORDER_MODE == "limit":
+        entry = LIMIT_FILL * BITGET_MAKER_BPS + (1 - LIMIT_FILL) * BITGET_TAKER_BPS
+        return entry + BITGET_TAKER_BPS + spread
+    return 2 * BITGET_TAKER_BPS + spread
 
 
 # ───────────────────────── ENDEKS MODÜLÜ (v4: NQ/QQQ · SPX/SPY) ─────────────────────────

@@ -36,7 +36,8 @@ def combine(finalists: list[dict], only_oos: bool = False) -> pd.DataFrame:
 
 
 def simulate(trades: pd.DataFrame, risk: float, max_open: int | None = None, cluster_max: int | None = None,
-             daily_limit: float | None = None) -> dict:
+             daily_limit: float | None = None, dd_steps: list | None = None) -> dict:
+    """dd_steps: [(düşüş eşiği, risk çarpanı), ...] — canlı botun risk yöneticisiyle aynı (zirveden düşüşe göre kademeli risk)."""
     max_open = max_open or C.PORT_MAX_OPEN
     cluster_max = cluster_max or C.PORT_CLUSTER_MAX
     daily_limit = C.PORT_DAILY_LIMIT if daily_limit is None else daily_limit
@@ -45,6 +46,7 @@ def simulate(trades: pd.DataFrame, risk: float, max_open: int | None = None, clu
     points = []
     taken, skipped = [], {"max_açık": 0, "küme": 0, "günlük_limit": 0}
     day, day_start_eq, day_pnl = None, 1.0, 0.0
+    peak = 1.0
 
     def realize(upto):
         nonlocal eq, open_pos, day, day_start_eq, day_pnl
@@ -75,7 +77,15 @@ def simulate(trades: pd.DataFrame, risk: float, max_open: int | None = None, clu
             continue
         if eq <= 0:
             break
-        p = {"exit_time": tr.exit_time, "risk_amt": risk * eq, "R": tr.R, "cluster": tr.cluster}
+        peak = max(peak, eq)
+        scale = 1.0
+        for thr, mult in sorted(dd_steps or []):
+            if 1 - eq / peak >= thr:
+                scale = mult
+        if scale <= 0:
+            skipped["günlük_limit"] += 1
+            continue
+        p = {"exit_time": tr.exit_time, "risk_amt": risk * eq * scale, "R": tr.R, "cluster": tr.cluster}
         open_pos.append(p)
         taken.append(tr)
     realize(pd.Timestamp.max.tz_localize("UTC"))
