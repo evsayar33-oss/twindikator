@@ -1,0 +1,11 @@
+═══ ATVS v5.2 4h DOĞRULAMA · 2026-10-08 06:40 UTC · emir modu limit · örnek maliyet BTC 13.0 bps ═══
+  1d: 15 coin + 8 batan coin
+  4h: 15 coin + 8 batan coin
+  EMA_1d: +0.341R n=1605 haftalık t=3.83 · OOS +0.222R · placebo p=0.000 · komşular %100 → GEÇTİ
+  X_1d: +0.707R n=468 haftalık t=3.12 · OOS +0.633R · placebo p=0.000 · komşular %100 → GEÇTİ
+  EMA_4h: +0.097R n=9234 haftalık t=2.12 · OOS +0.060R · placebo p=0.000 · komşular %100 → GEÇTİ
+  X_4h: +0.105R n=4627 haftalık t=1.67 · OOS +0.008R · placebo p=0.025 · komşular %100 → GEÇEMEDİ
+  F1_XAU_4h_DONCH: eski maliyet +0.317R → Bitget +0.084R (OOS +0.166R, 434 işlem)
+  F2_ETH_4h_DONCH: eski maliyet +0.557R → Bitget +0.525R (OOS +0.742R, 379 işlem)
+  portföy stratejileri: EMA_1d, X_1d, EMA_4h, F1_XAU_4h_DONCH, F2_ETH_4h_DONCH
+süre 654s

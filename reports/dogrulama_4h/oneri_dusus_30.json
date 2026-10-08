@@ -1,0 +1,14 @@
+{
+ "aciklama": "v5.2 önerisi — %95 olasılıkla düşüş ≤ %30 hedefi (risk yöneticisi dahil). Emir modu: limit.",
+ "max_acik": 8,
+ "riskler": {
+  "EMA_1d": 0.005,
+  "X_1d": 0.02,
+  "EMA_4h": 0.0,
+  "F1_XAU_4h_DONCH": 0.0,
+  "F2_ETH_4h_DONCH": 0.02
+ },
+ "cagr": 0.5424017610995289,
+ "p95_mdd": 0.2624300675720164,
+ "oos_cagr": 0.22465055083723073
+}
