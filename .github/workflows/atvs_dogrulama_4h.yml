@@ -1,0 +1,54 @@
+name: ATVS 4h Doğrulama (kripto 4 saatlik MACD + düşüş toleransı)
+
+on:
+  workflow_dispatch:
+    inputs:
+      taker:
+        description: "Bitget taker ücreti (tek yön, baz puan; standart 6)"
+        default: "6"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atvs-repo-write
+  cancel-in-progress: false
+
+jobs:
+  dogrulama:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      PYTHONUNBUFFERED: "1"
+      ATVS_TAKER_BPS: ${{ github.event.inputs.taker || '6' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Veri önbelleği (ortak)
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: atvs-data-${{ github.run_id }}
+          restore-keys: atvs-data-
+      - name: Doğrulama paketi (D1–D6)
+        run: |
+          set -o pipefail
+          mkdir -p reports/dogrulama_4h
+          python run_dogrulama_4h.py 2>&1 | tee reports/dogrulama_4h/calisma.txt
+      - name: Raporu depoya yaz
+        if: always()
+        run: |
+          git config user.name "atvs-lab-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add reports/dogrulama_4h || true
+          git commit -m "ATVS 4h doğrulama $(date -u +%Y-%m-%d)" || { echo "değişiklik yok"; exit 0; }
+          for i in 1 2 3 4 5; do git pull --rebase --autostash && git push && break; sleep $((i*10)); done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: atvs-dogrulama-4h-rapor
+          path: reports/dogrulama_4h
