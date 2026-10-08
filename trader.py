@@ -61,7 +61,7 @@ def log(*a):
 
 
 DRY = env("ATVS_DRY", "0") == "1"
-RISK = float(env("ATVS_RISK", "0.01"))
+RISK = float(env("ATVS_RISK", "0.0125"))   # v5.3: %20 düşüş toleransı satırı (ETH Donchian %1.25; kripto riskleri bununla ölçeklenir)
 def _only():
     """Aktif botlar: repodaki aktif_botlar.txt (GitHub'dan telefonla düzenlenir) > ATVS_ONLY > hepsi."""
     fp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "aktif_botlar.txt")
